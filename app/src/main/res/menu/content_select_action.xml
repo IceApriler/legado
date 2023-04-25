@@ -36,4 +36,9 @@
         android:id="@+id/menu_share_str"
         android:title="@string/share"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_collect_str"
+        android:title="收藏"
+        app:showAsAction="never" />
 </menu>
