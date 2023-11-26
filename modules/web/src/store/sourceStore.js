@@ -1,5 +1,10 @@
 import { defineStore } from "pinia";
-import { emptyBookSource, emptyRssSource } from "@utils/souce";
+import {
+  emptyBookSource,
+  emptyRssSource,
+  getSourceUniqueKey,
+  convertSourcesToMap,
+} from "@utils/souce";
 
 const isBookSource = /bookSource/i.test(location.href);
 const emptySource = isBookSource ? emptyBookSource : emptyRssSource;
@@ -11,7 +16,8 @@ export const useSourceStore = defineStore("source", {
       bookSources: [], // 临时存放所有书源,
       /** @type {import("@/source").RssSource[]} */
       rssSources: [], // 临时存放所有订阅源
-      errorPushSources: [], // 保存到阅读app出错的源
+      /** @type {import("@/source").Source[]} */
+      savedSources: [], // 批量保存到阅读app成功的源
       /** @type {import("@/source").Source} */
       currentSource: emptySource, // 当前编辑的源
       currentTab: localStorage.getItem("tabName") || "editTab",
@@ -21,6 +27,9 @@ export const useSourceStore = defineStore("source", {
   },
   getters: {
     sources: (state) => (isBookSource ? state.bookSources : state.rssSources),
+    // @ts-ignore
+    sourcesMap: (state) => convertSourcesToMap(state.sources),
+    savedSourcesMap: (state) => convertSourcesToMap(state.savedSources),
     currentSourceUrl: (state) =>
       isBookSource
         ? state.currentSource.bookSourceUrl
@@ -47,6 +56,10 @@ export const useSourceStore = defineStore("source", {
         this.rssSources = data;
       }
     },
+    //批量推送
+    setPushReturnSources(returnSoures) {
+      this.savedSources = returnSoures;
+    },
     //删除源
     deleteSources(data) {
       let sources = isBookSource ? this.bookSources : this.rssSources;
@@ -58,45 +71,13 @@ export const useSourceStore = defineStore("source", {
     //保存当前编辑源
     saveCurrentSource() {
       let source = this.currentSource,
-        sources,
-        searchKey;
-      if (isBookSource) {
-        sources = this.bookSources;
-        searchKey = "bookSourceUrl";
-      } else {
-        sources = this.rssSources;
-        searchKey = "sourceUrl";
-      }
-      let index = sources.findIndex(
-        (element) => element[searchKey] === source[searchKey]
-      );
-      //去掉响应 toRaw?
-      source = JSON.parse(JSON.stringify(source));
-      if (index > -1) {
-        sources.splice(index, 1, source);
-      } else {
-        sources.push(source);
-      }
+        map = this.sourcesMap;
+      map.set(getSourceUniqueKey(source), JSON.parse(JSON.stringify(source)));
+      this.saveSources(Array.from(map.values()));
     },
-    // 更改当前编辑的源
+    // 更改当前编辑的源qq
     changeCurrentSource(source) {
-      const newContent = JSON.stringify(source);
-      this.currentSource = JSON.parse(newContent);
-    },
-    async setPushReturnSources(returnSoures) {
-      if (isBookSource) {
-        // @ts-ignore
-        this.errorPushSources = this.sources.filter((source) =>
-          returnSoures.every(
-            (item) => item.bookSourceUrl !== source.bookSourceUrl
-          )
-        );
-      } else {
-        // @ts-ignore
-        this.errorPushSources = this.sources.filter((source) =>
-          returnSoures.every((item) => item.sourceUrl !== source.sourceUrl)
-        );
-      }
+      this.currentSource = JSON.parse(JSON.stringify(source));
     },
     // update editTab tabName and editTab info
     changeTabName(tabName) {
@@ -104,8 +85,7 @@ export const useSourceStore = defineStore("source", {
       localStorage.setItem("tabName", tabName);
     },
     changeEditTabSource(source) {
-      const newContent = JSON.stringify(source);
-      this.editTabSource = JSON.parse(newContent);
+      this.editTabSource = JSON.parse(JSON.stringify(source));
     },
     editHistory(history) {
       let historyObj;
@@ -146,6 +126,7 @@ export const useSourceStore = defineStore("source", {
     clearAllSource() {
       this.bookSources = [];
       this.rssSources = [];
+      this.savedSources = [];
     },
   },
 });

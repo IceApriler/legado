@@ -2,6 +2,7 @@ package io.legado.app.ui.book.read.page
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -55,7 +56,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
     val defaultAnimationSpeed = 300
     private var pressDown = false
     private var isMove = false
-    private var isPageMove = false
 
     //起始点
     var startX: Float = 0f
@@ -83,8 +83,9 @@ class ReadView(context: Context, attrs: AttributeSet) :
     private var pressOnTextSelected = false
     private val initialTextPos = TextPos(0, 0, 0)
 
-    val slopSquare by lazy { ViewConfiguration.get(context).scaledTouchSlop }
+    private val slopSquare by lazy { ViewConfiguration.get(context).scaledTouchSlop }
     private var pageSlopSquare: Int = slopSquare
+    var pageSlopSquare2: Int = pageSlopSquare * pageSlopSquare
     private val tlRect = RectF()
     private val tcRect = RectF()
     private val trRect = RectF()
@@ -97,6 +98,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     private val autoPageRect by lazy { Rect() }
     private val autoPagePint by lazy { Paint().apply { color = context.accentColor } }
     private val boundary by lazy { BreakIterator.getWordInstance(Locale.getDefault()) }
+    private var nextPageBitmap: Bitmap? = null
 
     init {
         addView(nextPage)
@@ -141,7 +143,8 @@ class ReadView(context: Context, attrs: AttributeSet) :
         pageDelegate?.onDraw(canvas)
         if (!isInEditMode && callBack.isAutoPage && !isScroll) {
             // 自动翻页
-            nextPage.screenshot()?.let {
+            val bitmap = nextPageBitmap ?: nextPage.screenshot()?.also { nextPageBitmap = it }
+            bitmap?.let {
                 val bottom = callBack.autoPageProgress
                 autoPageRect.set(0, 0, width, bottom)
                 canvas.drawBitmap(it, autoPageRect, autoPageRect, null)
@@ -152,7 +155,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
                     bottom.toFloat(),
                     autoPagePint
                 )
-                it.recycle()
             }
         }
     }
@@ -182,7 +184,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
 
         //在多点触控时，事件不走ACTION_DOWN分支而产生的特殊事件处理
-        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_UP){
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_UP) {
             pageDelegate?.onTouch(event)
         }
         when (event.action) {
@@ -199,36 +201,34 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 postDelayed(longPressRunnable, longPressTimeout)
                 pressDown = true
                 isMove = false
-                isPageMove = false
                 pageDelegate?.onTouch(event)
                 pageDelegate?.onDown()
-                setStartPoint(event.x, event.y)
+                setStartPoint(event.x, event.y, false)
             }
+
             MotionEvent.ACTION_MOVE -> {
+                val absX = abs(startX - event.x)
+                val absY = abs(startY - event.y)
                 if (!isMove) {
-                    isMove =
-                        abs(startX - event.x) > slopSquare || abs(startY - event.y) > slopSquare
-                }
-                if (!isPageMove) {
-                    isPageMove =
-                        abs(startX - event.x) > pageSlopSquare || abs(startY - event.y) > pageSlopSquare
+                    isMove = absX > slopSquare || absY > slopSquare
                 }
                 if (isMove) {
                     longPressed = false
                     removeCallbacks(longPressRunnable)
                     if (isTextSelected) {
                         selectText(event.x, event.y)
-                    } else if (isPageMove) {
+                    } else {
                         pageDelegate?.onTouch(event)
                     }
                 }
             }
+
             MotionEvent.ACTION_UP -> {
                 callBack.screenOffTimerStart()
                 removeCallbacks(longPressRunnable)
                 if (!pressDown) return true
                 pressDown = false
-                if (!isPageMove) {
+                if (!pageDelegate!!.isMoved && !isMove) {
                     if (!longPressed && !pressOnTextSelected) {
                         if (!curPage.onClick(startX, startY)) {
                             onSingleTapUp()
@@ -238,24 +238,32 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 }
                 if (isTextSelected) {
                     callBack.showTextActionMenu()
-                } else if (isPageMove) {
+                } else if (pageDelegate!!.isMoved) {
                     pageDelegate?.onTouch(event)
                 }
                 pressOnTextSelected = false
             }
+
             MotionEvent.ACTION_CANCEL -> {
                 removeCallbacks(longPressRunnable)
                 if (!pressDown) return true
                 pressDown = false
                 if (isTextSelected) {
                     callBack.showTextActionMenu()
-                } else if (isPageMove) {
+                } else if (pageDelegate!!.isMoved) {
                     pageDelegate?.onTouch(event)
                 }
                 pressOnTextSelected = false
             }
         }
         return true
+    }
+
+    fun cancelSelect() {
+        if (isTextSelected) {
+            curPage.cancelSelect()
+            isTextSelected = false
+        }
     }
 
     /**
@@ -360,16 +368,8 @@ class ReadView(context: Context, attrs: AttributeSet) :
                         }
                     }
                 }
-                curPage.selectStartMoveIndex(
-                    startPos.relativePagePos,
-                    startPos.lineIndex,
-                    startPos.columnIndex
-                )
-                curPage.selectEndMoveIndex(
-                    endPos.relativePagePos,
-                    endPos.lineIndex,
-                    endPos.columnIndex
-                )
+                curPage.selectStartMoveIndex(startPos)
+                curPage.selectEndMoveIndex(endPos)
             }
         }
     }
@@ -383,27 +383,35 @@ class ReadView(context: Context, attrs: AttributeSet) :
             mcRect.contains(startX, startY) -> if (!isAbortAnim) {
                 click(AppConfig.clickActionMC)
             }
+
             bcRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionBC)
             }
+
             blRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionBL)
             }
+
             brRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionBR)
             }
+
             mlRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionML)
             }
+
             mrRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionMR)
             }
+
             tlRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionTL)
             }
+
             tcRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionTC)
             }
+
             trRect.contains(startX, startY) -> {
                 click(AppConfig.clickActionTR)
             }
@@ -415,7 +423,11 @@ class ReadView(context: Context, attrs: AttributeSet) :
      */
     private fun click(action: Int) {
         when (action) {
-            0 -> callBack.showActionMenu()
+            0 -> {
+                pageDelegate?.dismissSnackBar()
+                callBack.showActionMenu()
+            }
+
             1 -> pageDelegate?.nextPageByAnim(defaultAnimationSpeed)
             2 -> pageDelegate?.prevPageByAnim(defaultAnimationSpeed)
             3 -> ReadBook.moveToNextChapter(true)
@@ -438,28 +450,13 @@ class ReadView(context: Context, attrs: AttributeSet) :
             val compare = initialTextPos.compare(textPos)
             when {
                 compare >= 0 -> {
-                    curPage.selectStartMoveIndex(
-                        textPos.relativePagePos,
-                        textPos.lineIndex,
-                        textPos.columnIndex
-                    )
-                    curPage.selectEndMoveIndex(
-                        initialTextPos.relativePagePos,
-                        initialTextPos.lineIndex,
-                        initialTextPos.columnIndex
-                    )
+                    curPage.selectStartMoveIndex(textPos)
+                    curPage.selectEndMoveIndex(initialTextPos)
                 }
+
                 else -> {
-                    curPage.selectStartMoveIndex(
-                        initialTextPos.relativePagePos,
-                        initialTextPos.lineIndex,
-                        initialTextPos.columnIndex
-                    )
-                    curPage.selectEndMoveIndex(
-                        textPos.relativePagePos,
-                        textPos.lineIndex,
-                        textPos.columnIndex
-                    )
+                    curPage.selectStartMoveIndex(initialTextPos)
+                    curPage.selectEndMoveIndex(textPos)
                 }
             }
         }
@@ -475,16 +472,18 @@ class ReadView(context: Context, attrs: AttributeSet) :
 
     /**
      * 翻页动画完成后事件
-     * @param direction 翻页翻页反向
+     * @param direction 翻页方向
      */
     fun fillPage(direction: PageDirection): Boolean {
         return when (direction) {
             PageDirection.PREV -> {
                 pageFactory.moveToPrev(true)
             }
+
             PageDirection.NEXT -> {
                 pageFactory.moveToNext(true)
             }
+
             else -> false
         }
     }
@@ -499,15 +498,19 @@ class ReadView(context: Context, attrs: AttributeSet) :
             PageAnim.coverPageAnim -> if (pageDelegate !is CoverPageDelegate) {
                 pageDelegate = CoverPageDelegate(this)
             }
+
             PageAnim.slidePageAnim -> if (pageDelegate !is SlidePageDelegate) {
                 pageDelegate = SlidePageDelegate(this)
             }
+
             PageAnim.simulationPageAnim -> if (pageDelegate !is SimulationPageDelegate) {
                 pageDelegate = SimulationPageDelegate(this)
             }
+
             PageAnim.scrollPageAnim -> if (pageDelegate !is ScrollPageDelegate) {
                 pageDelegate = ScrollPageDelegate(this)
             }
+
             else -> if (pageDelegate !is NoAnimPageDelegate) {
                 pageDelegate = NoAnimPageDelegate(this)
             }
@@ -525,12 +528,14 @@ class ReadView(context: Context, attrs: AttributeSet) :
         if (isScroll && !callBack.isAutoPage) {
             curPage.setContent(pageFactory.curPage, resetPageOffset)
         } else {
-            curPage.resetPageOffset()
+            if (callBack.isAutoPage && relativePosition >= 0) {
+                clearNextPageBitmap()
+            }
             when (relativePosition) {
                 -1 -> prevPage.setContent(pageFactory.prevPage)
                 1 -> nextPage.setContent(pageFactory.nextPage)
                 else -> {
-                    curPage.setContent(pageFactory.curPage)
+                    curPage.setContent(pageFactory.curPage, resetPageOffset)
                     nextPage.setContent(pageFactory.nextPage)
                     prevPage.setContent(pageFactory.prevPage)
                 }
@@ -545,6 +550,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     fun upPageSlopSquare() {
         val pageTouchSlop = AppConfig.pageTouchSlop
         this.pageSlopSquare = if (pageTouchSlop == 0) slopSquare else pageTouchSlop
+        pageSlopSquare2 = this.pageSlopSquare * this.pageSlopSquare
     }
 
     /**
@@ -621,6 +627,15 @@ class ReadView(context: Context, attrs: AttributeSet) :
 
     fun getCurVisiblePage(): TextPage {
         return curPage.getCurVisiblePage()
+    }
+
+    fun getCurPagePosition(): Int {
+        return curPage.getCurVisibleFirstLine()?.pagePosition ?: 0
+    }
+
+    fun clearNextPageBitmap() {
+        nextPageBitmap?.recycle()
+        nextPageBitmap = null
     }
 
     override val currentChapter: TextChapter?

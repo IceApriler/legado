@@ -27,7 +27,7 @@
         </div>
         <el-button
           :disabled="recordKeyDowning"
-          @click="bindHotKeys"
+          @click="saveHotKeys"
           :icon="CircleCheckFilled"
           >保存</el-button
         >
@@ -211,8 +211,8 @@ const buttons = ref(
     { name: "↶撤销操作", hotKeys: [], action: undo },
     { name: "↷重做操作", hotKeys: [], action: redo },
     { name: "⇏调试源", hotKeys: [], action: debug },
-    { name: "✓保存源", hotKeys: [], action: saveSource }
-  )
+    { name: "✓保存源", hotKeys: [], action: saveSource },
+  ),
 );
 const hotkeysDialogVisible = ref(true);
 
@@ -221,21 +221,37 @@ const recordKeyDowning = ref(false);
 const recordKeyDownIndex = ref(-1);
 
 const stopRecordKeyDown = () => {
+  if (!recordKeyDowning.value) {
+    hotkeysDialogVisible.value = false;
+  }
   recordKeyDowning.value = false;
 };
 
-watch(hotkeysDialogVisible, (visibale) => {
-  if (!visibale) return hotkeys.unbind("*");
-  hotkeys.unbind();
-  /**监听按键 */
-  hotkeys("*", (event) => {
-    event.preventDefault();
-    if (recordKeyDowning.value && recordKeyDownIndex.value > -1)
-      buttons.value[recordKeyDownIndex.value].hotKeys =
-        // @ts-ignore
-        hotkeys.getPressedKeyString();
-  });
-});
+watch(
+  hotkeysDialogVisible,
+  (visibale) => {
+    if (!visibale) {
+      hotkeys.unbind("*");
+      readHotkeysConfig();
+      bindHotKeys();
+      return;
+    }
+    readHotkeysConfig();
+    hotkeys.unbind();
+    /**监听按键 */
+    hotkeys("*", (event) => {
+      event.preventDefault();
+      let pressedKeys = hotkeys.getPressedKeyString();
+      if (pressedKeys.length == 1 && pressedKeys[0] == "esc") {
+        //单独按下esc 不录入
+        return;
+      }
+      if (recordKeyDowning.value && recordKeyDownIndex.value > -1)
+        buttons.value[recordKeyDownIndex.value].hotKeys = pressedKeys;
+    });
+  },
+  { immediate: true },
+);
 
 const recordKeyDown = (index) => {
   recordKeyDowning.value = true;
@@ -247,39 +263,52 @@ const recordKeyDown = (index) => {
   recordKeyDownIndex.value = index;
 };
 
-const bindHotKeys = () => {
-  hotkeysDialogVisible.value = false;
+const saveHotKeys = () => {
   const hotKeysConfig = [];
+  buttons.value.forEach(({ hotKeys }) => {
+    hotKeysConfig.push(hotKeys);
+  });
+  saveHotkeysConfig(hotKeysConfig);
+  hotkeysDialogVisible.value = false;
+};
+
+const bindHotKeys = () => {
+  // hotkeys默认过滤INPUT SELECT TEXTAREA
+  hotkeys.filter = () => true;
   buttons.value.forEach(({ hotKeys, action }) => {
+    if (hotKeys.length == 0) return;
     hotkeys(hotKeys.join("+"), (event) => {
       event.preventDefault();
       action.call(null);
     });
-    hotKeysConfig.push(hotKeys);
   });
-  saveHotkeysConfig(hotKeysConfig);
 };
-
 const saveHotkeysConfig = (config) => {
   localStorage.setItem("legado_web_hotkeys", JSON.stringify(config));
 };
 
-const readHotkeysConfig = () => {
+/**
+ * 读取快捷键配置
+ * @return 是否成功读取配置
+ */
+function readHotkeysConfig() {
   try {
     const config = JSON.parse(localStorage.getItem("legado_web_hotkeys"));
-    if (!Array.isArray(config) || config.length == 0) return;
+    if (!Array.isArray(config) || config.length == 0) return false;
     buttons.value.forEach((button, index) => (button.hotKeys = config[index]));
-    hotkeysDialogVisible.value = false;
-    bindHotKeys();
+    return true;
   } catch {
     ElMessage({ message: "快捷键配置错误", type: "error" });
     localStorage.removeItem("legado_web_hotkeys");
   }
-};
+  return false;
+}
 
 onMounted(() => {
   /**读取热键配置 */
-  readHotkeysConfig();
+  if (readHotkeysConfig()) {
+    hotkeysDialogVisible.value = false;
+  }
 });
 </script>
 

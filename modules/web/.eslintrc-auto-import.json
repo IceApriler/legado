@@ -4,7 +4,6 @@
     "ComponentPublicInstance": true,
     "ComputedRef": true,
     "EffectScope": true,
-    "ElLoading": true,
     "ElMessage": true,
     "InjectionKey": true,
     "PropType": true,
@@ -79,6 +78,8 @@
     "watch": true,
     "watchEffect": true,
     "watchPostEffect": true,
-    "watchSyncEffect": true
+    "watchSyncEffect": true,
+    "toValue": true,
+    "WritableComputedRef": true
   }
 }

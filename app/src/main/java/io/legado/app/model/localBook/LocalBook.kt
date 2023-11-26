@@ -23,7 +23,7 @@ import io.legado.app.lib.webdav.WebDavException
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.utils.*
 import kotlinx.coroutines.runBlocking
-import org.jsoup.nodes.Entities
+import org.apache.commons.text.StringEscapeUtils
 import splitties.init.appCtx
 import java.io.*
 import java.util.regex.Pattern
@@ -56,9 +56,8 @@ object LocalBook {
                     }.firstOrNull()?.let {
                         getBookInputStream(it)
                     }
-                } else if (webDavUrl != null) {
+                } else if (webDavUrl != null && downloadRemoteBook(book)) {
                     // 下载远程链接
-                    downloadRemoteBook(book)
                     getBookInputStream(book)
                 } else {
                     null
@@ -89,12 +88,15 @@ object LocalBook {
             book.isEpub -> {
                 EpubFile.getChapterList(book)
             }
+
             book.isUmd -> {
                 UmdFile.getChapterList(book)
             }
+
             book.isPdf -> {
                 PdfFile.getChapterList(book)
             }
+
             else -> {
                 TextFile.getChapterList(book)
             }
@@ -116,12 +118,15 @@ object LocalBook {
                 book.isEpub -> {
                     EpubFile.getContent(book, chapter)
                 }
+
                 book.isUmd -> {
                     UmdFile.getContent(book, chapter)
                 }
+
                 book.isPdf -> {
                     PdfFile.getContent(book, chapter)
                 }
+
                 else -> {
                     TextFile.getContent(book, chapter)
                 }
@@ -133,11 +138,7 @@ object LocalBook {
         }
         if (book.isEpub) {
             content = content?.replace("&lt;img", "&lt; img", true) ?: return null
-            return kotlin.runCatching {
-                Entities.unescape(content)
-            }.onFailure {
-                AppLog.put("HTML实体解码失败\n${it.localizedMessage}", it)
-            }.getOrDefault(content)
+            return StringEscapeUtils.unescapeHtml4(content)
         }
         return content
     }
@@ -185,7 +186,6 @@ object LocalBook {
                 name = nameAuthor.first,
                 author = nameAuthor.second,
                 originName = fileName,
-                coverUrl = getCoverPath(bookUrl),
                 latestChapterTime = updateTime,
                 order = appDb.bookDao.minOrder - 1
             )
@@ -221,7 +221,7 @@ object LocalBook {
         }
     }
 
-   /* 批量导入 支持自动导入压缩包的支持书籍 */
+    /* 批量导入 支持自动导入压缩包的支持书籍 */
     fun importFiles(uri: Uri): List<Book> {
         val books = mutableListOf<Book>()
         val fileDoc = FileDoc.fromUri(uri, false)
@@ -332,6 +332,7 @@ object LocalBook {
                     Base64.DEFAULT
                 )
             )
+
             else -> throw NoStackTraceException("在线导入书籍支持http/https/DataURL")
         }
         return saveBookFile(inputStream, fileName)
@@ -386,7 +387,7 @@ object LocalBook {
     }
 
     //下载book对应的远程文件 并更新Book
-    private fun downloadRemoteBook(localBook: Book) {
+    private fun downloadRemoteBook(localBook: Book): Boolean {
         val webDavUrl = localBook.getRemoteUrl()
         if (webDavUrl.isNullOrBlank()) throw NoStackTraceException("Book file is not webDav File")
         try {
@@ -418,9 +419,11 @@ object LocalBook {
                     localBook.save()
                 }
             }
+            return true
         } catch (e: Exception) {
             e.printOnDebug()
             AppLog.put("自动下载webDav书籍失败", e)
+            return false
         }
     }
 

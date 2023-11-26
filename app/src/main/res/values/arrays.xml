@@ -23,6 +23,7 @@
 		<item>@string/bookshelf_px_1</item>
 		<item>@string/bookshelf_px_2</item>
 		<item>@string/bookshelf_px_3</item>
+		<item>@string/bookshelf_px_4</item>
 	</string-array>
 
 	<string-array name="indent">
@@ -72,7 +73,7 @@
 		<item>@string/screen_portrait</item>
 		<item>@string/screen_landscape</item>
 		<item>@string/screen_sensor</item>
-		<item>反向竖屏</item>
+		<item>@string/screen_portrait_reversed</item>
 	</string-array>
 
 	<string-array name="double_page_title">
@@ -141,6 +142,20 @@
 		<item>BookSource</item>
 		<item>RssSource</item>
 		<item>ReplaceRule</item>
+	</string-array>
+
+	<string-array name="default_home_page">
+		<item>@string/bookshelf</item>
+		<item>@string/discovery</item>
+		<item>@string/rss</item>
+		<item>@string/my</item>
+	</string-array>
+
+	<string-array name="default_home_page_value">
+		<item>bookshelf</item>
+		<item>explore</item>
+		<item>rss</item>
+		<item>my</item>
 	</string-array>
 
 </resources>

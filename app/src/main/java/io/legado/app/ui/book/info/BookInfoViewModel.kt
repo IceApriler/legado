@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import com.github.junrar.exception.UnsupportedRarV5Exception
 import io.legado.app.R
 import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppLog
@@ -53,11 +52,7 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
             }
             if (bookUrl.isNotBlank()) {
                 appDb.searchBookDao.getSearchBook(bookUrl)?.toBook()?.let {
-                    if (it.name == name && it.author == author) {
-                        upBook(it)
-                    } else {
-                        throw NoStackTraceException("未找到书籍，请删除此书源后重新搜索：${it.originName}")
-                    }
+                    upBook(it)
                     return@execute
                 }
             }
@@ -103,7 +98,7 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
 
     private fun upCoverByRule(book: Book) {
         execute {
-            if (book.customCoverUrl.isNullOrBlank()) {
+            if (book.coverUrl.isNullOrBlank() && book.customCoverUrl.isNullOrBlank()) {
                 BookCover.searchCover(book)?.let { coverUrl ->
                     book.customCoverUrl = coverUrl
                     bookData.postValue(book)
@@ -131,6 +126,11 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                         book.lastCheckTime = remoteBook.lastModify
                     }
                 }
+            } else {
+                val bs = bookSource ?: return@execute
+                if (book.originName != bs.bookSourceName) {
+                    book.originName = bs.bookSourceName
+                }
             }
         }.onError {
             when (it) {
@@ -157,6 +157,7 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                 loadChapter(book, scope)
             } else {
                 bookSource?.let { bookSource ->
+                    val oldBook = book.copy()
                     WebBook.getBookInfo(this, bookSource, book, canReName = canReName)
                         .onSuccess(IO) {
                             appDb.bookDao.getBook(book.name, book.author)?.let {
@@ -165,6 +166,9 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                             bookData.postValue(it)
                             if (inBookshelf) {
                                 appDb.bookDao.update(it)
+                                if (oldBook.name != book.name) {
+                                    BookHelp.updateCacheFolder(oldBook, book)
+                                }
                             }
                             if (it.isWebFile) {
                                 loadWebFile(it, scope)
@@ -200,7 +204,8 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                     val oldBook = book.copy()
                     WebBook.getChapterList(this, bookSource, book, true)
                         .onSuccess(IO) {
-                            if (inBookshelf) {
+                            val dbBook = appDb.bookDao.getBook(book.name, book.author)
+                            if (dbBook?.bookUrl == oldBook.bookUrl) {
                                 if (oldBook.bookUrl == book.bookUrl) {
                                     appDb.bookDao.update(book)
                                 } else {
@@ -245,9 +250,12 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
     ) {
         execute(scope) {
             webFiles.clear()
-            val fileName = "${book.name} 作者：${book.author}"
+            val fileNameNoExtension = if (book.author.isBlank()) book.name
+            else "${book.name} 作者：${book.author}"
             book.downloadUrls!!.map {
-                val mFileName = UrlUtil.getFileName(AnalyzeUrl(it, source = bookSource)) ?: fileName
+                val analyzeUrl = AnalyzeUrl(it, source = bookSource)
+                val mFileName = UrlUtil.getFileName(analyzeUrl)
+                    ?: "${fileNameNoExtension}.${analyzeUrl.type}"
                 WebFile(it, mFileName)
             }
         }.onError {
@@ -299,13 +307,8 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
                 AppPattern.bookFileRegex.matches(it)
             }
         }.onError {
-            when (it) {
-                is UnsupportedRarV5Exception -> context.toastOnUi("暂不支持 rar v5 解压")
-                else -> {
-                    AppLog.put("getArchiveEntriesName Error:\n${it.localizedMessage}", it)
-                    context.toastOnUi("getArchiveEntriesName Error:\n${it.localizedMessage}")
-                }
-            }
+            AppLog.put("getArchiveEntriesName Error:\n${it.localizedMessage}", it)
+            context.toastOnUi("getArchiveEntriesName Error:\n${it.localizedMessage}")
         }.onSuccess {
             onSuccess.invoke(it)
         }

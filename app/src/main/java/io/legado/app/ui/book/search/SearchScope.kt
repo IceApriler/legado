@@ -4,6 +4,7 @@ import androidx.lifecycle.MutableLiveData
 import io.legado.app.R
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.BookSourcePart
 import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.splitNotBlank
 import splitties.init.appCtx
@@ -20,15 +21,19 @@ data class SearchScope(private var scope: String) {
         "${source.bookSourceName.replace(":", "")}::${source.bookSourceUrl}"
     )
 
+    constructor(source: BookSourcePart) : this(
+        "${source.bookSourceName.replace(":", "")}::${source.bookSourceUrl}"
+    )
+
     override fun toString(): String {
         return scope
     }
 
     val stateLiveData = MutableLiveData(scope)
 
-    fun update(scope: String) {
+    fun update(scope: String, postValue: Boolean = true) {
         this.scope = scope
-        stateLiveData.postValue(scope)
+        if (postValue) stateLiveData.postValue(scope)
         save()
     }
 
@@ -138,6 +143,11 @@ data class SearchScope(private var scope: String) {
 
     fun save() {
         AppConfig.searchScope = scope
+        if (isAll() || isSource() || scope.contains(",")) {
+            AppConfig.searchGroup = ""
+        } else {
+            AppConfig.searchGroup = scope
+        }
     }
 
 }

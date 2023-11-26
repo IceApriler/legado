@@ -141,6 +141,10 @@ class ImportRssSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_view
             AppConfig.importKeepName
         binding.toolBar.menu.findItem(R.id.menu_keep_group)?.isChecked =
             AppConfig.importKeepGroup
+        binding.toolBar.menu.findItem(R.id.menu_keep_enable)?.isChecked =
+            AppConfig.importKeepEnable
+        binding.toolBar.menu.findItem(R.id.menu_select_new_source)?.isVisible = false
+        binding.toolBar.menu.findItem(R.id.menu_select_update_source)?.isVisible = false
     }
 
     @SuppressLint("InflateParams")
@@ -151,9 +155,15 @@ class ImportRssSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_view
                 item.isChecked = !item.isChecked
                 putPrefBoolean(PreferKey.importKeepName, item.isChecked)
             }
+
             R.id.menu_keep_group -> {
                 item.isChecked = !item.isChecked
                 putPrefBoolean(PreferKey.importKeepGroup, item.isChecked)
+            }
+
+            R.id.menu_keep_enable -> {
+                item.isChecked = !item.isChecked
+                AppConfig.importKeepEnable = item.isChecked
             }
         }
         return false
@@ -162,7 +172,7 @@ class ImportRssSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_view
     private fun alertCustomGroup(item: MenuItem) {
         alert(R.string.diy_edit_source_group) {
             val alertBinding = DialogCustomGroupBinding.inflate(layoutInflater).apply {
-                val groups = appDb.rssSourceDao.allGroups
+                val groups = appDb.rssSourceDao.allGroups()
                 textInputLayout.setHint(R.string.group_name)
                 editView.setFilterValues(groups.toList())
                 editView.dropDownHeight = 180.dpToPx()

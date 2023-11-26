@@ -7,14 +7,15 @@ import io.legado.app.R
 import io.legado.app.constant.AppConst
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.AppPattern
-import io.legado.app.constant.EventBus
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.MediaHelp
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.lib.dialogs.SelectItem
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
 import io.legado.app.utils.*
+import kotlinx.coroutines.ensureActive
 
 /**
  * 本地朗读
@@ -24,6 +25,7 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
     private var textToSpeech: TextToSpeech? = null
     private var ttsInitFinish = false
     private val ttsUtteranceListener = TTSUtteranceListener()
+    private var speakJob: Coroutine<*>? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -49,8 +51,10 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
 
     @Synchronized
     fun clearTTS() {
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
+        textToSpeech?.runCatching {
+            stop()
+            shutdown()
+        }
         textToSpeech = null
         ttsInitFinish = false
     }
@@ -74,35 +78,53 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
         if (contentList.isEmpty()) {
             AppLog.putDebug("朗读列表为空")
             ReadBook.readAloud()
-        } else {
-            super.play()
-            kotlin.runCatching {
-                MediaHelp.playSilentSound(this@TTSReadAloudService)
-                val tts = textToSpeech ?: throw NoStackTraceException("tts is null")
-                var result = tts.speak("", TextToSpeech.QUEUE_FLUSH, null, null)
-                if (result == TextToSpeech.ERROR) {
-                    clearTTS()
-                    initTts()
-                    return
-                }
-                for (i in nowSpeak until contentList.size) {
-                    val text = contentList[i]
-                    if (!text.matches(AppPattern.notReadAloudRegex)) {
-                        result = tts.speak(text, TextToSpeech.QUEUE_ADD, null, AppConst.APP_TAG + i)
-                        if (result == TextToSpeech.ERROR) {
-                            AppLog.put("tts朗读出错:$text")
-                        }
-                    }
-                }
-            }.onFailure {
-                AppLog.put("tts朗读出错", it)
-                toastOnUi(it.localizedMessage)
+            return
+        }
+        super.play()
+        MediaHelp.playSilentSound(this@TTSReadAloudService)
+        speakJob?.cancel()
+        speakJob = execute {
+            val tts = textToSpeech ?: throw NoStackTraceException("tts is null")
+            var result = tts.runCatching {
+                speak("", TextToSpeech.QUEUE_FLUSH, null, null)
+            }.getOrElse {
+                AppLog.put("tts出错\n${it.localizedMessage}", it, true)
+                TextToSpeech.ERROR
             }
+            if (result == TextToSpeech.ERROR) {
+                clearTTS()
+                initTts()
+                return@execute
+            }
+            val contentList = contentList
+            for (i in nowSpeak until contentList.size) {
+                ensureActive()
+                var text = contentList[i]
+                if (paragraphStartPos > 0 && i == nowSpeak) {
+                    text = text.substring(paragraphStartPos)
+                }
+                if (text.matches(AppPattern.notReadAloudRegex)) {
+                    continue
+                }
+                result = tts.runCatching {
+                    speak(text, TextToSpeech.QUEUE_ADD, null, AppConst.APP_TAG + i)
+                }.getOrElse {
+                    AppLog.put("tts出错\n${it.localizedMessage}", it, true)
+                    TextToSpeech.ERROR
+                }
+                if (result == TextToSpeech.ERROR) {
+                    AppLog.put("tts朗读出错:$text")
+                }
+            }
+        }.onError {
+            AppLog.put("tts朗读出错\n${it.localizedMessage}", it, true)
         }
     }
 
     override fun playStop() {
-        textToSpeech?.stop()
+        textToSpeech?.runCatching {
+            stop()
+        }
     }
 
     /**
@@ -125,7 +147,10 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
      */
     override fun pauseReadAloud(abandonFocus: Boolean) {
         super.pauseReadAloud(abandonFocus)
-        textToSpeech?.stop()
+        speakJob?.cancel()
+        textToSpeech?.runCatching {
+            stop()
+        }
     }
 
     /**
@@ -147,14 +172,15 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
                     pageIndex++
                     ReadBook.moveToNextPage()
                 }
-                postEvent(EventBus.TTS_PROGRESS, readAloudNumber + 1)
+                upTtsProgress(readAloudNumber + 1)
             }
         }
 
         override fun onDone(s: String) {
             //跳过全标点段落
             do {
-                readAloudNumber += contentList[nowSpeak].length + 1
+                readAloudNumber += contentList[nowSpeak].length + 1 - paragraphStartPos
+                paragraphStartPos = 0
                 nowSpeak++
                 if (nowSpeak >= contentList.size) {
                     nextChapter()
@@ -169,7 +195,7 @@ class TTSReadAloudService : BaseReadAloudService(), TextToSpeech.OnInitListener 
                 if (readAloudNumber + start > it.getReadLength(pageIndex + 1)) {
                     pageIndex++
                     ReadBook.moveToNextPage()
-                    postEvent(EventBus.TTS_PROGRESS, readAloudNumber + start)
+                    upTtsProgress(readAloudNumber + start)
                 }
             }
         }

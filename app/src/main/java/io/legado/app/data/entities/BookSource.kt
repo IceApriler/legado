@@ -183,7 +183,7 @@ data class BookSource(
 
     fun getInvalidGroupNames(): String {
         return bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.toHashSet()?.filter {
-            "失效" in it
+            "失效" in it || it == "校验超时"
         }?.joinToString() ?: ""
     }
 
@@ -206,7 +206,9 @@ data class BookSource(
                 && enabled == source.enabled
                 && enabledExplore == source.enabledExplore
                 && enabledCookieJar == source.enabledCookieJar
+                && equal(variableComment, source.variableComment)
                 && equal(concurrentRate, source.concurrentRate)
+                && equal(jsLib, source.jsLib)
                 && equal(header, source.header)
                 && equal(loginUrl, source.loginUrl)
                 && equal(loginUi, source.loginUi)

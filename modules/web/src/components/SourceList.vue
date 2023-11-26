@@ -29,7 +29,7 @@
       >清空</el-button
     >
   </div>
-  <el-checkbox-group id="source-list" v-model="sourceSelect">
+  <el-checkbox-group id="source-list" v-model="sourceUrlSelect">
     <virtual-list
       style="height: 100%; overflow-y: auto; overflow-x: hidden"
       :data-key="(source) => source.bookSourceUrl || source.sourceUrl"
@@ -43,38 +43,63 @@
 <script setup>
 import API from "@api";
 import { Folder, Delete, Download, Search } from "@element-plus/icons-vue";
-import { isSourceContains } from "@utils/souce";
+import {
+  isSourceMatches,
+  getSourceUniqueKey,
+  convertSourcesToMap,
+} from "@utils/souce";
 import VirtualList from "vue3-virtual-scroll-list";
 import SourceItem from "./SourceItem.vue";
 
 const store = useSourceStore();
-const sourceSelect = ref([]);
+const sourceUrlSelect = ref([]);
 const searchKey = ref("");
-const { sources } = storeToRefs(store);
-const isBookSource = computed(() => {
-  return /bookSource/.test(window.location.href);
-});
-const deleteSelectSources = () => {
-  API.deleteSource(sourceSelect.value).then(({ data }) => {
-    if (!data.isSuccess) return ElMessage.error(data.errorMsg);
-    store.deleteSources(sourceSelect.value);
-    sourceSelect.value = [];
-  });
-};
-const clearAllSources = () => {
-  store.clearAllSource();
-  sourceSelect.value = [];
-};
-//筛选源
+const { sources, sourcesMap } = storeToRefs(store);
+
+// 筛选源
+/** @type Ref<import('@/source').Source[]> */
 const sourcesFiltered = computed(() => {
-  let key = searchKey.value;
+  const key = searchKey.value;
   if (key === "") return sources.value;
   return (
     sources.value
       // @ts-ignore
-      .filter((source) => isSourceContains(source, key))
+      .filter((source) => isSourceMatches(source, key))
   );
 });
+// 计算当前筛选关键词下的选中源
+/** @type Ref<import('@/source').Source[]> */
+const sourceSelect = computed(() => {
+  const urls = sourceUrlSelect.value;
+  if (urls.length == 0) return [];
+  const sourcesFilteredMap =
+    searchKey.value == ""
+      ? sourcesMap.value
+      : convertSourcesToMap(sourcesFiltered.value);
+  return urls.reduce((sources, sourceUrl) => {
+    const source = sourcesFilteredMap.get(sourceUrl);
+    if (source) sources.push(source);
+    return sources;
+  }, []);
+});
+
+const deleteSelectSources = () => {
+  const sourceSelectValue = sourceSelect.value;
+  API.deleteSource(sourceSelectValue).then(({ data }) => {
+    if (!data.isSuccess) return ElMessage.error(data.errorMsg);
+    store.deleteSources(sourceSelectValue);
+    const sourceUrlSelectRawValue = toRaw(sourceUrlSelect.value);
+    sourceSelectValue.forEach((source) => {
+      const index = sourceUrlSelectRawValue.indexOf(getSourceUniqueKey(source));
+      if (index > -1) sourceUrlSelectRawValue.splice(index, 1);
+    });
+    sourceUrlSelect.value = sourceUrlSelectRawValue;
+  });
+};
+const clearAllSources = () => {
+  store.clearAllSource();
+  sourceUrlSelect.value = [];
+};
 
 //导入本地文件
 const importSourceFile = () => {
@@ -101,13 +126,15 @@ const importSourceFile = () => {
   });
   input.click();
 };
+
+const isBookSource = /bookSource/.test(window.location.href);
 const outExport = () => {
   const exportFile = document.createElement("a");
   let sources =
-      sourceSelect.value.length === 0
+      sourceUrlSelect.value.length === 0
         ? sourcesFiltered.value
         : sourceSelect.value,
-    sourceType = isBookSource.value ? "BookSource" : "RssSource";
+    sourceType = isBookSource ? "BookSource" : "RssSource";
 
   exportFile.download = `${sourceType}_${Date()
     .replace(/.*?\s(\d+)\s(\d+)\s(\d+:\d+:\d+).*/, "$2$1$3")
@@ -131,7 +158,6 @@ const outExport = () => {
 #source-list {
   margin-top: 6px;
   height: calc(100vh - 112px - 7px);
-
   :deep(.el-checkbox) {
     margin-bottom: 4px;
     width: 100%;

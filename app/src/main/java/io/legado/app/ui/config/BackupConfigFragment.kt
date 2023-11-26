@@ -94,8 +94,15 @@ class BackupConfigFragment : PreferenceFragment(),
     }
     private val restoreDoc = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
-            Coroutine.async {
+            waitDialog.setText("恢复中…")
+            waitDialog.show()
+            val task = Coroutine.async {
                 Restore.restore(appCtx, uri)
+            }.onFinally {
+                waitDialog.dismiss()
+            }
+            waitDialog.setOnCancelListener {
+                task.cancel()
             }
         }
     }
@@ -158,6 +165,7 @@ class BackupConfigFragment : PreferenceFragment(),
                 showHelp()
                 return true
             }
+
             R.id.menu_log -> showDialogFragment<AppLogDialog>()
         }
         return false
@@ -180,9 +188,10 @@ class BackupConfigFragment : PreferenceFragment(),
             PreferKey.webDavAccount,
             PreferKey.webDavPassword,
             PreferKey.webDavDir -> listView.post {
-                upPreferenceSummary(key, getPrefString(key))
+                upPreferenceSummary(key, appCtx.getPrefString(key))
                 viewModel.upWebDavConfig()
             }
+
             PreferKey.webDavDeviceName -> upPreferenceSummary(key, getPrefString(key))
         }
     }
@@ -191,27 +200,31 @@ class BackupConfigFragment : PreferenceFragment(),
         val preference = findPreference<Preference>(preferenceKey) ?: return
         when (preferenceKey) {
             PreferKey.webDavUrl ->
-                if (value == null) {
+                if (value.isNullOrBlank()) {
                     preference.summary = getString(R.string.web_dav_url_s)
                 } else {
                     preference.summary = value.toString()
                 }
+
             PreferKey.webDavAccount ->
-                if (value == null) {
+                if (value.isNullOrBlank()) {
                     preference.summary = getString(R.string.web_dav_account_s)
                 } else {
                     preference.summary = value.toString()
                 }
+
             PreferKey.webDavPassword ->
-                if (value == null) {
+                if (value.isNullOrBlank()) {
                     preference.summary = getString(R.string.web_dav_pw_s)
                 } else {
                     preference.summary = "*".repeat(value.toString().length)
                 }
+
             PreferKey.webDavDir -> preference.summary = when (value) {
                 null -> "legado"
                 else -> value
             }
+
             else -> {
                 if (preference is ListPreference) {
                     val index = preference.findIndexOfValue(value)
@@ -311,7 +324,7 @@ class BackupConfigFragment : PreferenceFragment(),
                 }.onError {
                     AppLog.put("备份出错\n${it.localizedMessage}", it)
                     appCtx.toastOnUi(appCtx.getString(R.string.backup_fail, it.localizedMessage))
-                }.onFinally(Main) {
+                }.onFinally {
                     waitDialog.dismiss()
                 }
             }
@@ -329,6 +342,9 @@ class BackupConfigFragment : PreferenceFragment(),
             showRestoreDialog(requireContext())
         }.onError {
             AppLog.put("恢复备份出错WebDavError\n${it.localizedMessage}", it)
+            if (context == null) {
+                return@onError
+            }
             alert {
                 setTitle(R.string.restore)
                 setMessage("WebDavError\n${it.localizedMessage}\n将从本地备份恢复。")
@@ -337,7 +353,7 @@ class BackupConfigFragment : PreferenceFragment(),
                 }
                 cancelButton()
             }
-        }.onFinally(Main) {
+        }.onFinally {
             waitDialog.dismiss()
         }
     }
@@ -374,7 +390,7 @@ class BackupConfigFragment : PreferenceFragment(),
         }.onError {
             AppLog.put("WebDav恢复出错\n${it.localizedMessage}", it)
             appCtx.toastOnUi("WebDav恢复出错\n${it.localizedMessage}")
-        }.onFinally(Main) {
+        }.onFinally {
             waitDialog.dismiss()
         }
         waitDialog.setOnCancelListener {

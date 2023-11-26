@@ -146,6 +146,8 @@
 }
 
 # 保持js引擎调用的java类
+-keep class * extends io.legado.app.help.JsExtensions{*;}
+# 保持js引擎调用的java类
 -keep class **.analyzeRule.**{*;}
 # 保持web类
 -keep class **.web.**{*;}
@@ -239,7 +241,7 @@
 }
 
 ## ExoPlayer 反射设置ua 保证该私有变量不被混淆
--keepclassmembers class com.google.android.exoplayer2.upstream.cache.CacheDataSource$Factory {
+-keepclassmembers class androidx.media3.datasource.cache.CacheDataSource$Factory {
     *** upstreamDataSourceFactory;
 }
 ## ExoPlayer 如果还不能播放就取消注释这个

@@ -2,6 +2,7 @@ package io.legado.app.utils
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
@@ -17,7 +18,9 @@ import okio.source
 import splitties.init.appCtx
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.charset.Charset
 
 fun Uri.isContentScheme() = this.scheme == "content"
@@ -196,6 +199,94 @@ fun Uri.inputStream(context: Context): Result<InputStream> {
                     throw NoStackTraceException("文件不存在")
                 }
             }
+        } catch (e: Exception) {
+            e.printOnDebug()
+            AppLog.put("读取inputStream失败：${e.localizedMessage}", e)
+            throw e
+        }
+    }
+}
+
+fun Uri.outputStream(context: Context): Result<OutputStream> {
+    val uri = this
+    return kotlin.runCatching {
+        try {
+            if (isContentScheme()) {
+                DocumentFile.fromSingleUri(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                return@runCatching context.contentResolver.openOutputStream(uri)!!
+            } else {
+                val path = RealPathUtil.getPath(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                val file = File(path)
+                if (file.exists()) {
+                    return@runCatching FileOutputStream(file)
+                } else {
+                    throw NoStackTraceException("文件不存在")
+                }
+            }
+        } catch (e: Exception) {
+            e.printOnDebug()
+            AppLog.put("读取inputStream失败：${e.localizedMessage}", e)
+            throw e
+        }
+    }
+}
+
+fun Uri.toReadPfd(context: Context): Result<ParcelFileDescriptor> {
+    val uri = this
+    return kotlin.runCatching {
+        try {
+            if (isContentScheme()) {
+                DocumentFile.fromSingleUri(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                return@runCatching context.contentResolver.openFileDescriptor(uri, "r")!!
+            } else {
+                val path = RealPathUtil.getPath(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                val file = File(path)
+                if (file.exists()) {
+                    return@runCatching ParcelFileDescriptor.open(
+                        file,
+                        ParcelFileDescriptor.MODE_READ_ONLY
+                    )
+                } else {
+                    throw NoStackTraceException("文件不存在")
+                }
+            }
+
+
+        } catch (e: Exception) {
+            e.printOnDebug()
+            AppLog.put("读取inputStream失败：${e.localizedMessage}", e)
+            throw e
+        }
+    }
+}
+
+fun Uri.toWritePfd(context: Context): Result<ParcelFileDescriptor> {
+    val uri = this
+    return kotlin.runCatching {
+        try {
+            if (isContentScheme()) {
+                DocumentFile.fromSingleUri(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                return@runCatching context.contentResolver.openFileDescriptor(uri, "w")!!
+            } else {
+                val path = RealPathUtil.getPath(context, uri)
+                    ?: throw NoStackTraceException("未获取到文件")
+                val file = File(path)
+                if (file.exists()) {
+                    return@runCatching ParcelFileDescriptor.open(
+                        file,
+                        ParcelFileDescriptor.MODE_WRITE_ONLY
+                    )
+                } else {
+                    throw NoStackTraceException("文件不存在")
+                }
+            }
+
+
         } catch (e: Exception) {
             e.printOnDebug()
             AppLog.put("读取inputStream失败：${e.localizedMessage}", e)

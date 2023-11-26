@@ -33,6 +33,7 @@
     <string name="replace">Reemplazar</string>
     <string name="replace_purify">Reemplazo</string>
     <string name="replace_purify_desc">Configurar reglas de reemplazo</string>
+    <string name="custom_export_section">Custom export chapter of epub</string>
     <string name="not_available">No disponible</string>
     <string name="enable">Activar</string>
     <string name="replace_purify_search">Buscar reemplazo</string>
@@ -89,7 +90,7 @@
     <string name="offline_cache_t">Caché sin conexión</string>
     <string name="offline_cache_s">precarga el o los capítulos(s) seleccionado(s) en Almacenamiento en caché</string>
     <string name="change_origin">Cambiar origen</string>
-    <string name="about_description">\u3000\u3000 Este es una aplicación de lectura bajo software libre, desarrollado en Kotlin, en que podrás participar. ¡Síguelos en la cuenta oficial de WeChat!</string>
+    <string name="about_description">\u3000\u3000 Este es una aplicación de lectura bajo software libre, desarrollado en Kotlin, en que podrás participar. </string>
     <string name="app_share_description">Legado (YueDu 3.0) disponible para descargar en：\n https://play.google.com/store/apps/details?id=io.legado.play.release</string>
     <string name="version_name">Versión %s</string>
     <string name="pt_background_verification">Verificación en segundo plano</string>
@@ -323,7 +324,7 @@
     <string name="book_info_edit">Editar información del libro</string>
     <string name="ps_default_read">Establecer la estantería como página de inicio</string>
     <string name="pt_default_read">Ir automáticamente a la lista de Recientes</string>
-    <string name="use_to">Objeto sustituto. El nombre del libro o la URL de origen están disponibles</string>
+    <string name="replace_scope">Objeto sustituto. El nombre del libro o la URL de origen están disponibles</string>
     <string name="menu_action_group">Grupos</string>
     <string name="download_path">Carpeta de caché</string>
     <string name="sys_file_picker">Selector de archivos del sistema</string>
@@ -377,7 +378,7 @@
     <string name="behavior_main_t">Ocultar automáticamente la barra de herramientas</string>
     <string name="behavior_main_s">La barra de herramientas se ocultará automáticamente cuando deslice la Librería</string>
     <string name="login">Iniciar sesión</string>
-    <string name="login_source">Iniciar sesión% s</string>
+    <string name="login_source">Iniciar sesión %s</string>
     <string name="success">Completado</string>
     <string name="source_no_login">La fuente actual no se ha configurado con una dirección de inicio de sesión</string>
     <string name="no_prev_page">Sin página anterior</string>
@@ -449,7 +450,7 @@
     <string name="error_get_book_info">Error al obtener la información del libro</string>
     <string name="error_get_content">Error al obtener el contenido</string>
     <string name="error_get_chapter_list">Error al obtener la lista de capítulos</string>
-    <string name="error_get_web_content">Error al acceder al sitio:% s</string>
+    <string name="error_get_web_content">Error al acceder al sitio: %s</string>
     <string name="error_read_file">Error al leer el archivo</string>
     <string name="error_load_toc">Error al cargar la lista de capítulos</string>
     <string name="error_get_data">Error al obtener los datos</string>
@@ -811,7 +812,7 @@
     <string name="export_bookshelf">Exportar lista de libros</string>
     <string name="import_bookshelf">Importar lista de libros</string>
     <string name="pre_download">Descarga anterior</string>
-    <string name="pre_download_s">Descargue% s capítulos antes</string>
+    <string name="pre_download_s">Descargue %s capítulos antes</string>
     <string name="is_enabled">Está habilitado</string>
     <string name="background_image">Imagen de fondo</string>
     <string name="copy_book_url">Copiar URL del libro</string>
@@ -874,6 +875,7 @@
     <string name="upload_url">上传URL</string>
     <string name="download_url_rule">downloadUrlRule(downloadUrls)</string>
     <string name="sort_by_respondTime">Ordenar por tiempo de respuesta</string>
+    <string name="respondTime">tiempo de respuesta: %1$d ms</string>
     <string name="export_success">导出成功</string>
     <string name="path">路径</string>
     <string name="direct_link_upload_rule">直链上传规则</string>
@@ -1098,4 +1100,38 @@
     <string name="set_local_password_summary">本地密码用来对备份的敏感信息加密和解密,如需在不同设备之间同步,本地密码需一致.</string>
     <string name="only_latest_backup_t">仅保留最新备份</string>
     <string name="only_latest_backup_s">本地备份仅保留最新备份文件</string>
+    <string name="webdav_application_authorization_error">Fail to authorize WebDav application</string>
+    <string name="load_word_count">Cargar palabras del libro</string>
+    <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
+    <string name="format_js_rule">格式化规则(formatJs)</string>
+    <string name="adjust_pos">调整位置</string>
+    <string name="select_section_export">Choose some chapters to be exported</string>
+    <string name="error_scope_input">Please enter the correct range</string>
+    <string name="custom_export">Custom Export</string>
+    <string name="file_contains_number">The number of chapters contained in each file</string>
+    <string name="export_chapter_index">The section index that needs to be exported</string>
+    <string name="shrink_database">压缩数据库</string>
+    <string name="shrink_database_summary">减小数据库文件的大小</string>
+    <string name="is_compress">是否压缩</string>
+    <string name="sort_desc">反序</string>
+    <string name="test">测试</string>
+    <string name="show_wait_up_count">显示等待更新数量</string>
+    <string name="exit_app">退出软件</string>
+    <string name="add_all_to_bookshelf">全部加入书架</string>
+    <string name="page_to">页至</string>
+    <string name="result_analyzed">Analyzed</string>
+    <string name="bookshelf_px_4">Comprehensive</string>
+    <string name="effective_replaces">起效的替换</string>
+    <string name="export_book">导出书籍</string>
+    <string name="export_book_notification_content">正在导出(%1$s),还有%2$d本待导出</string>
+    <string name="export_md">导出(MD)</string>
+    <string name="change_source_delay">换源间隔</string>
+    <string name="open_book_info_by_click_title">点击书名打开详情</string>
+    <string name="export_wait">等待导出</string>
+    <string name="default_home_page">默认主页</string>
+    <string name="show_bookshelf_fast_scroller">显示快速滚动条</string>
+    <string name="export_all_use_book_source">导出所有书的书源</string>
+    <string name="keep_enable">保留启用状态</string>
+    <string name="preview_image_by_click">点击预览图片</string>
+    <string name="screen_portrait_reversed">反向竖屏</string>
 </resources>

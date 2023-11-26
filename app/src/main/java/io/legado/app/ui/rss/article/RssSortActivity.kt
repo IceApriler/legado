@@ -5,10 +5,12 @@ package io.legado.app.ui.rss.article
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.ViewGroup
 import androidx.activity.viewModels
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentStatePagerAdapter
+import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.databinding.ActivityRssArtivlesBinding
@@ -53,6 +55,15 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
         }
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        return try {
+            super.dispatchTouchEvent(ev)
+        } catch (e: IllegalArgumentException) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.rss_articles, menu)
         return super.onCompatCreateOptionsMenu(menu)
@@ -70,6 +81,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
                 putExtra("type", "rssSource")
                 putExtra("key", viewModel.rssSource?.sourceUrl)
             }
+
             R.id.menu_refresh_sort -> viewModel.clearSortCache { upFragments() }
             R.id.menu_set_source_variable -> setSourceVariable()
             R.id.menu_edit_source -> viewModel.rssSource?.sourceUrl?.let {
@@ -77,11 +89,13 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
                     putExtra("sourceUrl", it)
                 }
             }
+
             R.id.menu_clear -> {
                 viewModel.url?.let {
                     viewModel.clearArticles()
                 }
             }
+
             R.id.menu_switch_layout -> {
                 viewModel.switchLayout()
                 upFragments()
@@ -91,7 +105,7 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     }
 
     private fun upFragments() {
-        launch {
+        lifecycleScope.launch {
             viewModel.rssSource?.sortUrls()?.let {
                 sortList.clear()
                 sortList.addAll(it)
@@ -106,13 +120,14 @@ class RssSortActivity : VMBaseActivity<ActivityRssArtivlesBinding, RssSortViewMo
     }
 
     private fun setSourceVariable() {
-        launch {
+        lifecycleScope.launch {
             val source = viewModel.rssSource
             if (source == null) {
                 toastOnUi("源不存在")
                 return@launch
             }
-            val comment = source.getDisplayVariableComment("源变量可在js中通过source.getVariable()获取")
+            val comment =
+                source.getDisplayVariableComment("源变量可在js中通过source.getVariable()获取")
             val variable = withContext(Dispatchers.IO) { source.getVariable() }
             showDialogFragment(
                 VariableDialog(

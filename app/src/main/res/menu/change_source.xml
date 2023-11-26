@@ -35,6 +35,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_load_word_count"
+        android:title="@string/load_word_count"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_load_info"
         android:title="@string/load_info"
         android:checkable="true"
@@ -45,5 +51,22 @@
         android:title="@string/load_toc"
         android:checkable="true"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_group"
+        android:title="@string/group">
 
+        <menu>
+            <group
+                android:id="@+id/source_group"
+                android:checkableBehavior="single">
+            </group>
+
+        </menu>
+
+    </item>
+
+    <item
+        android:id="@+id/menu_close"
+        android:title="@string/close"
+        app:showAsAction="never" />
 </menu>

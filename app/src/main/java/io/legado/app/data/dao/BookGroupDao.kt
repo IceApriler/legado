@@ -7,7 +7,7 @@ import io.legado.app.data.entities.BookGroup
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface BookGroupDao {
+abstract interface BookGroupDao {
 
     @Query("select * from book_groups where groupId = :id")
     fun getByID(id: Long): BookGroup?
@@ -57,6 +57,9 @@ interface BookGroupDao {
 
     @get:Query("SELECT * FROM book_groups ORDER BY `order`")
     val all: List<BookGroup>
+
+    @get:Query("select count(*) < 64 from book_groups where groupId >= 0 or groupId == ${Long.MIN_VALUE}")
+    val canAddGroup: Boolean
 
     @Query("update book_groups set show = 1 where groupId = :groupId")
     fun enableGroup(groupId: Long)

@@ -40,9 +40,16 @@
             android:defaultValue="true"
             android:key="showRss"
             android:title="@string/show_rss"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="bookshelf"
+            android:key="defaultHomePage"
+            android:title="@string/default_home_page"
             app:allowDividerAbove="false"
             app:allowDividerBelow="false"
-            app:iconSpaceReserved="false" />
+            app:entries="@array/default_home_page"
+            app:entryValues="@array/default_home_page_value" />
 
     </io.legado.app.lib.prefs.PreferenceCategory>
 
@@ -54,8 +61,8 @@
 
         <io.legado.app.lib.prefs.Preference
             android:key="localPassword"
-            android:title="@string/set_local_password"
-            android:summary="@string/set_local_password_summary" />
+            android:summary="@string/set_local_password_summary"
+            android:title="@string/set_local_password" />
 
         <io.legado.app.lib.prefs.Preference
             android:key="userAgent"
@@ -64,8 +71,8 @@
         <io.legado.app.lib.prefs.SwitchPreference
             android:defaultValue="false"
             android:key="webServiceWakeLock"
-            android:title="@string/web_service_wake_lock"
-            android:summary="@string/web_service_wake_lock_summary" />
+            android:summary="@string/web_service_wake_lock_summary"
+            android:title="@string/web_service_wake_lock" />
 
         <io.legado.app.lib.prefs.Preference
             android:key="defaultBookTreeUri"
@@ -122,6 +129,12 @@
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:key="ignoreAudioFocus"
+            android:summary="@string/ignore_audio_focus_summary"
+            android:title="@string/ignore_audio_focus_title" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
             android:defaultValue="true"
             android:key="autoClearExpired"
             android:summary="@string/auto_clear_expired_summary"
@@ -132,12 +145,6 @@
             android:key="showAddToShelfAlert"
             android:summary="@string/show_add_to_shelf_alert_summary"
             android:title="@string/show_add_to_shelf_alert_title" />
-
-        <io.legado.app.lib.prefs.SwitchPreference
-            android:defaultValue="false"
-            android:key="ignoreAudioFocus"
-            android:summary="@string/ignore_audio_focus_summary"
-            android:title="@string/ignore_audio_focus_title" />
 
         <io.legado.app.lib.prefs.Preference
             android:key="webPort"
@@ -154,6 +161,12 @@
             android:key="clearWebViewData"
             android:summary="@string/clear_webview_data_summary"
             android:title="@string/clear_webview_data"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.Preference
+            android:key="shrinkDatabase"
+            android:summary="@string/shrink_database_summary"
+            android:title="@string/shrink_database"
             app:iconSpaceReserved="false" />
 
         <io.legado.app.lib.prefs.Preference

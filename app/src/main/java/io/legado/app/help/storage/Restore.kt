@@ -7,7 +7,6 @@ import io.legado.app.BuildConfig
 import io.legado.app.R
 import io.legado.app.constant.AppConst.androidId
 import io.legado.app.constant.AppLog
-import io.legado.app.constant.EventBus
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
@@ -25,6 +24,7 @@ import io.legado.app.data.entities.RuleSub
 import io.legado.app.data.entities.SearchKeyword
 import io.legado.app.data.entities.Server
 import io.legado.app.data.entities.TxtTocRule
+import io.legado.app.help.AppWebDav
 import io.legado.app.help.DirectLinkUpload
 import io.legado.app.help.LauncherIconHelp
 import io.legado.app.help.book.isLocal
@@ -46,7 +46,6 @@ import io.legado.app.utils.getSharedPreferences
 import io.legado.app.utils.isContentScheme
 import io.legado.app.utils.isJsonArray
 import io.legado.app.utils.openInputStream
-import io.legado.app.utils.postEvent
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
@@ -70,11 +69,16 @@ object Restore {
             } else {
                 ZipUtils.unZipToPath(File(uri.path!!), Backup.backupPath)
             }
-        }.onSuccess {
+        }.onFailure {
+            AppLog.put("复制解压文件出错\n${it.localizedMessage}", it)
+            return
+        }
+        kotlin.runCatching {
             restore(Backup.backupPath)
             LocalConfig.lastBackup = System.currentTimeMillis()
         }.onFailure {
-            AppLog.put("复制解压文件出错\n${it.localizedMessage}", it)
+            appCtx.toastOnUi("恢复备份出错\n${it.localizedMessage}")
+            AppLog.put("恢复备份出错\n${it.localizedMessage}", it)
         }
     }
 
@@ -208,6 +212,7 @@ object Restore {
                 AppLog.put("恢复阅读界面出错\n${it.localizedMessage}", it)
             }
         }
+        AppWebDav.downBgs()
         appCtx.getSharedPreferences(path, "config")?.all?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
 
@@ -215,12 +220,17 @@ object Restore {
                 if (BackupConfig.keyIsNotIgnore(key)) {
                     when (key) {
                         PreferKey.webDavPassword -> {
-                            edit.putString(
-                                key,
-                                kotlin.runCatching {
-                                    aes.decryptStr(value.toString())
-                                }.getOrDefault(value.toString())
-                            )
+                            kotlin.runCatching {
+                                aes.decryptStr(value.toString())
+                            }.getOrNull()?.let {
+                                edit.putString(key, it)
+                            } ?: let {
+                                if (appCtx.getPrefString(PreferKey.webDavPassword)
+                                        .isNullOrBlank()
+                                ) {
+                                    edit.putString(key, value.toString())
+                                }
+                            }
                         }
 
                         else -> when (value) {
@@ -248,7 +258,7 @@ object Restore {
             if (!BuildConfig.DEBUG) {
                 LauncherIconHelp.changeIcon(appCtx.getPrefString(PreferKey.launcherIcon))
             }
-            postEvent(EventBus.RECREATE, "")
+            ThemeConfig.applyDayNight(appCtx)
         }
     }
 

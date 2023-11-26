@@ -18,6 +18,7 @@ object AppPattern {
     val authorRegex = Regex("^\\s*作\\s*者[:：\\s]+|\\s+著")
     val fileNameRegex = Regex("[\\\\/:*?\"<>|.]")
     val splitGroupRegex = Regex("[,;，；]")
+    val titleNumPattern: Pattern = Pattern.compile("(第)(.+?)(章)")
 
     //书源调试信息中的各种符号
     val debugMessageSymbolRegex = Regex("[⇒◇┌└≡]")
@@ -43,4 +44,12 @@ object AppPattern {
     val notReadAloudRegex = Regex("^(\\s|\\p{C}|\\p{P}|\\p{Z}|\\p{S})+$")
 
     val xmlContentTypeRegex = "(application|text)/\\w*\\+?xml.*".toRegex()
+
+    val semicolonRegex = ";".toRegex()
+
+    val equalsRegex = "=".toRegex()
+
+    val spaceRegex = "\\s+".toRegex()
+
+    val regexCharRegex = "[{}()\\[\\].+*?^$\\\\|]".toRegex()
 }

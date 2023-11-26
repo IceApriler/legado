@@ -8,7 +8,6 @@ import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.page.entities.column.TextColumn
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
-import io.legado.app.utils.textHeight
 import splitties.init.appCtx
 import java.text.DecimalFormat
 import kotlin.math.min
@@ -21,7 +20,7 @@ import kotlin.math.min
 data class TextPage(
     var index: Int = 0,
     var text: String = appCtx.getString(R.string.data_loading),
-    var title: String = "",
+    var title: String = appCtx.getString(R.string.data_loading),
     private val textLines: ArrayList<TextLine> = arrayListOf(),
     var pageSize: Int = 0,
     var chapterSize: Int = 0,
@@ -32,9 +31,26 @@ data class TextPage(
 
     val lines: List<TextLine> get() = textLines
     val lineSize: Int get() = textLines.size
-    val charSize: Int get() = text.length
+    val charSize: Int get() = text.length.coerceAtLeast(1)
     val searchResult = hashSetOf<TextColumn>()
     var isMsgPage: Boolean = false
+
+    val paragraphs by lazy {
+        paragraphsInternal
+    }
+
+    val paragraphsInternal: ArrayList<TextParagraph> get() {
+        val paragraphs = arrayListOf<TextParagraph>()
+        val lines = textLines.filter { it.paragraphNum > 0 }
+        val offset = lines.first().paragraphNum - 1
+        lines.forEach { line ->
+            if (paragraphs.lastIndex < line.paragraphNum - offset - 1) {
+                paragraphs.add(TextParagraph(0))
+            }
+            paragraphs[line.paragraphNum - offset - 1].textLines.add(line)
+        }
+        return paragraphs
+    }
 
     fun addLine(line: TextLine) {
         textLines.add(line)
@@ -59,7 +75,7 @@ data class TextPage(
             val lastLine = textLines[leftLineSize - 1]
             if (lastLine.isImage) return@run
             val lastLineHeight = with(lastLine) { lineBottom - lineTop }
-            val pageHeight = lastLine.lineBottom + contentPaint.textHeight * lineSpacingExtra
+            val pageHeight = lastLine.lineBottom + contentPaintTextHeight * lineSpacingExtra
             if (visibleHeight - pageHeight >= lastLineHeight) return@run
             val surplus = (visibleBottom - lastLine.lineBottom)
             if (surplus == 0f) return@run
@@ -77,7 +93,7 @@ data class TextPage(
             val lastLine = textLines.last()
             if (lastLine.isImage) return@run
             val lastLineHeight = with(lastLine) { lineBottom - lineTop }
-            val pageHeight = lastLine.lineBottom + contentPaint.textHeight * lineSpacingExtra
+            val pageHeight = lastLine.lineBottom + contentPaintTextHeight * lineSpacingExtra
             if (visibleHeight - pageHeight >= lastLineHeight) return@run
             val surplus = (visibleBottom - lastLine.lineBottom)
             if (surplus == 0f) return@run

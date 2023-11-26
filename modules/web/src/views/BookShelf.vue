@@ -1,5 +1,5 @@
 <template>
-  <div class="index-wrapper">
+  <div :class="{ 'index-wrapper': true, night: isNight, day: !isNight }">
     <div class="navigation-wrapper">
       <div class="navigation-title-wrapper">
         <div class="navigation-title">阅读</div>
@@ -29,7 +29,7 @@
                   readingRecent.name,
                   readingRecent.author,
                   readingRecent.chapterIndex,
-                  readingRecent.chapterPos
+                  readingRecent.chapterPos,
                 )
               "
               :class="{ 'no-point': readingRecent.url == '' }"
@@ -78,12 +78,17 @@
 import "@/assets/fonts/shelffont.css";
 import { useBookStore } from "@/store";
 import githubUrl from "@/assets/imgs/github.png";
+import { useLoading } from "@/hooks/loading";
 import { Search } from "@element-plus/icons-vue";
-import loadingSvg from "@element-plus/icons-svg/loading.svg?raw";
 import API from "@api";
 
 const store = useBookStore();
 const { connectStatus, connectType, newConnect, shelf } = storeToRefs(store);
+
+const theme = computed(() => {
+  return store.config.theme;
+});
+const isNight = computed(() => theme.value == 6);
 
 const readingRecent = ref({
   name: "尚无阅读记录",
@@ -92,23 +97,13 @@ const readingRecent = ref({
   chapterIndex: 0,
   chapterPos: 0,
 });
-const showLoading = ref(false);
 const shelfWrapper = ref(null);
-const loadingSerive = ref(null);
-watch(showLoading, (loading) => {
-  if (!loading) return loadingSerive.value?.close();
-  loadingSerive.value = ElLoading.service({
-    target: shelfWrapper.value,
-    spinner: loadingSvg,
-    text: "正在获取书籍信息",
-    lock: true,
-  });
-});
+const { showLoading, closeLoading, loadingWrapper } = useLoading(
+  shelfWrapper,
+  "正在获取书籍信息",
+);
 
 const books = ref([]);
-watchEffect(() => {
-  if (books.value.length > 0) showLoading.value = false;
-});
 
 const search = ref("");
 const isSearching = ref(false);
@@ -131,7 +126,7 @@ const searchBook = () => {
   if (search.value == "") return;
   books.value = [];
   store.clearSearchBooks();
-  showLoading.value = true;
+  showLoading();
   isSearching.value = true;
   API.search(
     search.value,
@@ -145,11 +140,11 @@ const searchBook = () => {
       }
     },
     () => {
-      showLoading.value = false;
+      closeLoading();
       if (books.value.length == 0) {
         ElMessage.info("搜索结果为空");
       }
-    }
+    },
   );
 };
 
@@ -187,7 +182,7 @@ const toDetail = (bookUrl, bookName, bookAuthor, chapterIndex, chapterPos) => {
   });
 };
 
-onMounted(async () => {
+onMounted(() => {
   //获取最近阅读书籍
   let readingRecentStr = localStorage.getItem("readingRecent");
   if (readingRecentStr != null) {
@@ -196,12 +191,15 @@ onMounted(async () => {
       readingRecent.value.chapterIndex = 0;
     }
   }
-  showLoading.value = true;
-  //await store.saveBookProcess();
-  fetchBookShelfData();
+  loadingWrapper(
+    store
+      .saveBookProgress()
+      //确保各种网络情况下同步请求先完成
+      .finally(fetchBookShelfData),
+  );
 });
 const fetchBookShelfData = () => {
-  API.getBookShelf()
+  return API.getBookShelf()
     .then((response) => {
       store.setConnectType("success");
       if (response.data.isSuccess) {
@@ -211,17 +209,15 @@ const fetchBookShelfData = () => {
             var x = a["durChapterTime"] || 0;
             var y = b["durChapterTime"] || 0;
             return y - x;
-          })
+          }),
         );
       } else {
         ElMessage.error(response.data.errorMsg);
-        showLoading.value = false;
       }
       store.setConnectStatus("已连接 ");
       store.setNewConnect(false);
     })
     .catch(function (error) {
-      showLoading.value = false;
       store.setConnectType("danger");
       store.setConnectStatus("连接失败");
       ElMessage.error("后端连接失败");
@@ -268,6 +264,11 @@ const fetchBookShelfData = () => {
           border-color: #e3e3e3;
         }
       }
+    }
+
+    .bottom-wrapper {
+      display: flex;
+      flex-direction: column;
     }
 
     .recent-wrapper {
@@ -331,18 +332,8 @@ const fetchBookShelfData = () => {
     width: 100%;
     display: flex;
     flex-direction: column;
-    :deep(.el-loading-mask) {
-      background-color: rgba(0, 0, 0, 0);
-    }
-    :deep(.el-loading-spinner) {
-      font-size: 36px;
-      color: #b5b5b5;
-    }
-
-    :deep(.el-loading-text) {
-      font-weight: 500;
-      color: #b5b5b5;
-    }
+    box-sizing: border-box;
+    overflow: hidden;
   }
 }
 
@@ -360,17 +351,50 @@ const fetchBookShelfData = () => {
         justify-content: space-between;
         align-items: flex-end;
       }
-      .bottom-wrapper,
+      .bottom-wrapper {
+        flex-direction: row;
+        > * {
+          flex-grow: 1;
+          margin-top: 18px;
+          .reading-recent,
+          .setting-item {
+            margin-bottom: 0px;
+          }
+        }
+      }
       .bottom-icons {
         display: none;
       }
     }
     .shelf-wrapper {
       padding: 0;
+      flex-grow: 1;
       :deep(.el-loading-spinner) {
         display: none;
       }
     }
+  }
+}
+
+.night {
+  :deep(.navigation-wrapper) {
+    background-color: #454545;
+    .navigation-title {
+      color: #aeaeae;
+    }
+    .search-wrapper {
+      .search-input {
+        .el-input__wrapper {
+          background-color: #454545;
+        }
+        .el-input__inner {
+          color: #b1b1b1;
+        }
+      }
+    }
+  }
+  :deep(.shelf-wrapper) {
+    background-color: #161819;
   }
 }
 </style>

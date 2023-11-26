@@ -31,6 +31,7 @@
     <string name="delete_all">删除所有</string>
     <string name="replace">替换</string>
     <string name="replace_purify">替换净化</string>
+    <string name="custom_export_section">自定义Epub导出章节</string>
     <string name="replace_purify_desc">配置替换净化规则</string>
     <string name="not_available">暂无</string>
     <string name="enable">启用</string>
@@ -89,7 +90,7 @@
     <string name="offline_cache_s">缓存选择的章节到本地</string>
     <string name="change_origin">换源</string>
     <string name="about_description">
-        \u3000\u3000这是一款使用 Kotlin 全新开发的开源的阅读软件，欢迎您的加入。关注公众号【开源阅读】！
+        \u3000\u3000这是一款使用 Kotlin 全新开发的开源的阅读软件，欢迎您的加入。
     </string>
     <string name="app_share_description">
         阅读 3.0 下载地址：\nhttps://www.coolapk.com/apk/256030
@@ -326,7 +327,7 @@
     <string name="book_info_edit">书籍信息编辑</string>
     <string name="ps_default_read">默认打开书架</string>
     <string name="pt_default_read">自动跳转最近阅读</string>
-    <string name="use_to">替换范围，选填书名或者书源 URL</string>
+    <string name="replace_scope">替换范围，选填书名或者书源 URL</string>
     <string name="menu_action_group">分组</string>
     <string name="download_path">内容缓存路径</string>
     <string name="sys_file_picker">系统文件选择器</string>
@@ -346,6 +347,7 @@
     <string name="ps_show_all_find">关闭则只显示勾选源的发现</string>
     <string name="update_toc">更新目录</string>
     <string name="txt_toc_rule">TXT 目录规则</string>
+    <string name="select_section_export">选择待导出章节</string>
     <string name="set_charset">设置编码</string>
     <string name="swap_sort">倒序-顺序</string>
     <string name="sort">排序</string>
@@ -878,6 +880,7 @@
     <string name="upload_url">上传 URL</string>
     <string name="download_url_rule">下载URL规则(downloadUrls)</string>
     <string name="sort_by_respondTime">响应时间排序</string>
+    <string name="respondTime">响应时间：%1$d ms</string>
     <string name="export_success">导出成功</string>
     <string name="path">路径</string>
     <string name="direct_link_upload_rule">直链上传规则</string>
@@ -1100,4 +1103,37 @@
     <string name="set_local_password_summary">本地密码用来对备份的敏感信息加密和解密,如需在不同设备之间同步,本地密码需一致.</string>
     <string name="only_latest_backup_t">仅保留最新备份</string>
     <string name="only_latest_backup_s">本地备份仅保留最新备份文件</string>
+    <string name="webdav_application_authorization_error">webDav应用验证失败</string>
+    <string name="load_word_count">加载字数</string>
+    <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
+    <string name="format_js_rule">格式化规则(formatJs)</string>
+    <string name="adjust_pos">调整位置</string>
+    <string name="error_scope_input">请输入正确的范围</string>
+    <string name="custom_export">自定义导出</string>
+    <string name="file_contains_number">每个文件包含的章节数量</string>
+    <string name="export_chapter_index">需要输出的章节</string>
+    <string name="shrink_database">压缩数据库</string>
+    <string name="shrink_database_summary">减小数据库文件的大小</string>
+    <string name="is_compress">是否压缩</string>
+    <string name="sort_desc">反序</string>
+    <string name="test">测试</string>
+    <string name="show_wait_up_count">显示等待更新数量</string>
+    <string name="exit_app">退出软件</string>
+    <string name="add_all_to_bookshelf">全部加入书架</string>
+    <string name="page_to">页至</string>
+    <string name="result_analyzed">解析示例</string>
+    <string name="bookshelf_px_4">综合排序</string>
+    <string name="effective_replaces">起效的替换</string>
+    <string name="export_book">导出书籍</string>
+    <string name="export_book_notification_content">正在导出(%1$s),还有%2$d本待导出</string>
+    <string name="export_md">导出(MD)</string>
+    <string name="change_source_delay">换源间隔</string>
+    <string name="open_book_info_by_click_title">点击书名打开详情</string>
+    <string name="export_wait">等待导出</string>
+    <string name="default_home_page">默认主页</string>
+    <string name="show_bookshelf_fast_scroller">显示快速滚动条</string>
+    <string name="export_all_use_book_source">导出所有书的书源</string>
+    <string name="keep_enable">保留启用状态</string>
+    <string name="preview_image_by_click">点击预览图片</string>
+    <string name="screen_portrait_reversed">反向竖屏</string>
 </resources>

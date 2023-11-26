@@ -142,6 +142,8 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
             ?.isChecked = AppConfig.importKeepName
         binding.toolBar.menu.findItem(R.id.menu_keep_group)
             ?.isChecked = AppConfig.importKeepGroup
+        binding.toolBar.menu.findItem(R.id.menu_keep_enable)
+            ?.isChecked = AppConfig.importKeepEnable
     }
 
     @SuppressLint("InflateParams", "NotifyDataSetChanged")
@@ -179,6 +181,11 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
                 item.isChecked = !item.isChecked
                 putPrefBoolean(PreferKey.importKeepGroup, item.isChecked)
             }
+
+            R.id.menu_keep_enable -> {
+                item.isChecked = !item.isChecked
+                AppConfig.importKeepEnable = item.isChecked
+            }
         }
         return false
     }
@@ -186,7 +193,7 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
     private fun alertCustomGroup(item: MenuItem) {
         alert(R.string.diy_edit_source_group) {
             val alertBinding = DialogCustomGroupBinding.inflate(layoutInflater).apply {
-                val groups = appDb.bookSourceDao.allGroups
+                val groups = appDb.bookSourceDao.allGroups()
                 textInputLayout.setHint(R.string.group_name)
                 editView.setFilterValues(groups.toList())
                 editView.dropDownHeight = 180.dpToPx()

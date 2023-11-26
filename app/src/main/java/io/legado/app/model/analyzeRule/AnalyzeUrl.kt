@@ -20,6 +20,7 @@ import io.legado.app.help.JsExtensions
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.glide.GlideHeaders
 import io.legado.app.help.http.*
+import io.legado.app.help.http.CookieManager.mergeCookies
 import io.legado.app.utils.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -371,6 +372,19 @@ class AnalyzeUrl(
     }
 
     /**
+     * 获取并发记录，若处于并发限制状态下则会等待
+     */
+    private suspend fun getConcurrentRecord(): ConcurrentRecord? {
+        while (true) {
+            try {
+                return fetchStart()
+            } catch (e: ConcurrentException) {
+                delay(e.waitTime.toLong())
+            }
+        }
+    }
+
+    /**
      * 访问网站,返回StrResponse
      */
     @Throws(ConcurrentException::class)
@@ -382,15 +396,7 @@ class AnalyzeUrl(
         if (type != null) {
             return StrResponse(url, HexUtil.encodeHexStr(getByteArrayAwait()))
         }
-        var concurrentRecord: ConcurrentRecord?
-        while (true) {
-            try {
-                concurrentRecord = fetchStart()
-                break
-            } catch (e: ConcurrentException) {
-                delay(e.waitTime.toLong())
-            }
-        }
+        val concurrentRecord = getConcurrentRecord()
         try {
             setCookie()
             val strResponse: StrResponse
@@ -454,7 +460,7 @@ class AnalyzeUrl(
             }
             return strResponse
         } finally {
-            saveCookie()
+            //saveCookie()
             fetchEnd(concurrentRecord)
         }
     }
@@ -476,15 +482,7 @@ class AnalyzeUrl(
      */
     @Throws(ConcurrentException::class)
     suspend fun getResponseAwait(): Response {
-        var concurrentRecord: ConcurrentRecord?
-        while (true) {
-            try {
-                concurrentRecord = fetchStart()
-                break
-            } catch (e: ConcurrentException) {
-                delay(e.waitTime.toLong())
-            }
-        }
+        val concurrentRecord = getConcurrentRecord()
         try {
             setCookie()
             val response = getProxyClient(proxy).newCallResponse(retry) {
@@ -509,7 +507,7 @@ class AnalyzeUrl(
             }
             return response
         } finally {
-            saveCookie()
+            //saveCookie()
             fetchEnd(concurrentRecord)
         }
     }
@@ -606,12 +604,12 @@ class AnalyzeUrl(
             CookieStore.getCookie(domain)
         }
         if (cookie.isNotEmpty()) {
-            val cookieMap = CookieStore.cookieToMap(cookie)
-            val customCookieMap = CookieStore.cookieToMap(headerMap["Cookie"] ?: "")
-            cookieMap.putAll(customCookieMap)
-            CookieStore.mapToCookie(cookieMap)?.let {
+            mergeCookies(cookie, headerMap["Cookie"])?.let {
                 headerMap.put("Cookie", it)
             }
+        }
+        if (enabledCookieJar) {
+            headerMap[CookieManager.cookieJarHeader] = "1"
         }
     }
 

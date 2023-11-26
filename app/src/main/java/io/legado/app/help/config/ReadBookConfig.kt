@@ -12,8 +12,25 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.help.DefaultData
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
-import io.legado.app.utils.*
+import io.legado.app.utils.BitmapUtils
+import io.legado.app.utils.FileUtils
+import io.legado.app.utils.GSON
 import io.legado.app.utils.compress.ZipUtils
+import io.legado.app.utils.createFolderReplace
+import io.legado.app.utils.externalCache
+import io.legado.app.utils.externalFiles
+import io.legado.app.utils.fromJsonArray
+import io.legado.app.utils.fromJsonObject
+import io.legado.app.utils.getCompatColor
+import io.legado.app.utils.getFile
+import io.legado.app.utils.getMeanColor
+import io.legado.app.utils.getPrefBoolean
+import io.legado.app.utils.getPrefInt
+import io.legado.app.utils.hexString
+import io.legado.app.utils.printOnDebug
+import io.legado.app.utils.putPrefBoolean
+import io.legado.app.utils.putPrefInt
+import io.legado.app.utils.resizeAndRecycle
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import splitties.init.appCtx
@@ -112,6 +129,22 @@ object ReadBookConfig {
                 }
             }
         }
+    }
+
+    fun getAllPicBgStr(): ArrayList<String> {
+        val list = arrayListOf<String>()
+        configList.forEach {
+            if (it.bgType == 2) {
+                list.add(it.bgStr)
+            }
+            if (it.bgTypeNight == 2) {
+                list.add(it.bgStrNight)
+            }
+            if (it.bgTypeEInk == 2) {
+                list.add(it.bgStrEInk)
+            }
+        }
+        return list
     }
 
     fun deleteDur(): Boolean {
@@ -394,7 +427,6 @@ object ReadBookConfig {
                 zipFile.writeBytes(byteArray)
                 val configDir = appCtx.externalCache.getFile("readConfig")
                 configDir.createFolderReplace()
-                @Suppress("BlockingMethodInNonBlockingContext")
                 ZipUtils.unZipToPath(zipFile, configDir)
                 val configFile = configDir.getFile(configFileName)
                 val config: Config = GSON.fromJsonObject<Config>(configFile.readText()).getOrThrow()
@@ -409,6 +441,7 @@ object ReadBookConfig {
                 }
                 if (config.bgType == 2) {
                     val bgName = FileUtils.getName(config.bgStr)
+                    config.bgStr = bgName
                     val bgPath = FileUtils.getPath(appCtx.externalFiles, "bg", bgName)
                     if (!FileUtils.exist(bgPath)) {
                         val bgFile = configDir.getFile(bgName)
@@ -420,6 +453,7 @@ object ReadBookConfig {
                 }
                 if (config.bgTypeNight == 2) {
                     val bgName = FileUtils.getName(config.bgStrNight)
+                    config.bgStrNight = bgName
                     val bgPath = FileUtils.getPath(appCtx.externalFiles, "bg", bgName)
                     if (!FileUtils.exist(bgPath)) {
                         val bgFile = configDir.getFile(bgName)
@@ -431,6 +465,7 @@ object ReadBookConfig {
                 }
                 if (config.bgTypeEInk == 2) {
                     val bgName = FileUtils.getName(config.bgStrEInk)
+                    config.bgStrEInk = bgName
                     val bgPath = FileUtils.getPath(appCtx.externalFiles, "bg", bgName)
                     if (!FileUtils.exist(bgPath)) {
                         val bgFile = configDir.getFile(bgName)
@@ -554,10 +589,12 @@ object ReadBookConfig {
                     bgTypeEInk = bgType
                     bgStrEInk = bg
                 }
+
                 AppConfig.isNightTheme -> {
                     bgTypeNight = bgType
                     bgStrNight = bg
                 }
+
                 else -> {
                     this.bgType = bgType
                     bgStr = bg
@@ -595,8 +632,13 @@ object ReadBookConfig {
                         val bitmap = BitmapUtils.decodeAssetsBitmap(appCtx, path, width, height)
                         BitmapDrawable(resources, bitmap?.resizeAndRecycle(width, height))
                     }
+
                     else -> {
-                        val bitmap = BitmapUtils.decodeBitmap(curBgStr(), width, height)
+                        val path = curBgStr().let {
+                            if (it.contains(File.separator)) it
+                            else FileUtils.getPath(appCtx.externalFiles, "bg", curBgStr())
+                        }
+                        val bitmap = BitmapUtils.decodeBitmap(path, width, height)
                         BitmapDrawable(resources, bitmap?.resizeAndRecycle(width, height))
                     }
                 }

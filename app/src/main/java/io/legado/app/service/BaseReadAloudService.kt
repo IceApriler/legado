@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.os.Bundle
@@ -14,6 +15,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.annotation.CallSuper
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
 import io.legado.app.R
@@ -29,8 +31,11 @@ import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.page.entities.TextChapter
 import io.legado.app.utils.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
 import splitties.init.appCtx
 import splitties.systemservices.audioManager
+import splitties.systemservices.notificationManager
 import splitties.systemservices.powerManager
 
 /**
@@ -71,14 +76,20 @@ abstract class BaseReadAloudService : BaseService(),
     private val mediaSessionCompat: MediaSessionCompat by lazy {
         MediaSessionCompat(this, "readAloud")
     }
-    internal val contentList = arrayListOf<String>()
+    internal var contentList = emptyList<String>()
     internal var nowSpeak: Int = 0
     internal var readAloudNumber: Int = 0
     internal var textChapter: TextChapter? = null
     internal var pageIndex = 0
     private var needResumeOnAudioFocusGain = false
     private var dsJob: Job? = null
+    private var cover: Bitmap =
+        BitmapFactory.decodeResource(appCtx.resources, R.drawable.icon_read_book)
     var pageChanged = false
+    private var ttsProgress = 0
+    private var toLast = false
+    var paragraphStartPos = 0
+    private var readAloudByPage = false
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -100,6 +111,16 @@ abstract class BaseReadAloudService : BaseService(),
         setTimer(AppConfig.ttsTimer)
         if (AppConfig.ttsTimer > 0) {
             toastOnUi("朗读定时 ${AppConfig.ttsTimer} 分钟")
+        }
+        execute {
+            @Suppress("BlockingMethodInNonBlockingContext")
+            ImageLoader
+                .loadBitmap(this@BaseReadAloudService, ReadBook.book?.getDisplayCover())
+                .submit()
+                .get()
+        }.onSuccess {
+            cover = it
+            upReadAloudNotification()
         }
     }
 
@@ -126,15 +147,18 @@ abstract class BaseReadAloudService : BaseService(),
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        upNotification()
         when (intent?.action) {
             IntentAction.play -> newReadAloud(
                 intent.getBooleanExtra("play", true),
                 intent.getIntExtra("pageIndex", ReadBook.durPageIndex),
                 intent.getIntExtra("startPos", 0)
             )
+
             IntentAction.pause -> pauseReadAloud()
             IntentAction.resume -> resumeReadAloud()
             IntentAction.upTtsSpeechRate -> upSpeechRate(true)
+            IntentAction.upTtsProgress -> upTtsProgress(ttsProgress)
             IntentAction.prevParagraph -> prevP()
             IntentAction.nextParagraph -> nextP()
             IntentAction.addTimer -> addTimer()
@@ -145,20 +169,44 @@ abstract class BaseReadAloudService : BaseService(),
     }
 
     private fun newReadAloud(play: Boolean, pageIndex: Int, startPos: Int) {
-        this.pageIndex = pageIndex
-        textChapter = ReadBook.curTextChapter
-        textChapter?.let { textChapter ->
-            nowSpeak = 0
+        execute(executeContext = IO) {
+            this@BaseReadAloudService.pageIndex = pageIndex
+            textChapter = ReadBook.curTextChapter
+            val textChapter = textChapter ?: return@execute
             readAloudNumber = textChapter.getReadLength(pageIndex) + startPos
-            contentList.clear()
-            val readAloudByPage = getPrefBoolean(PreferKey.readAloudByPage)
-            textChapter.getNeedReadAloud(pageIndex, readAloudByPage, startPos)
-                .split("\n").forEach { text ->
-                    if (text.isNotEmpty()) {
-                        contentList.add(text)
-                    }
+            readAloudByPage = getPrefBoolean(PreferKey.readAloudByPage)
+            contentList = textChapter.getNeedReadAloud(0, readAloudByPage, 0)
+                .split("\n")
+                .filter { it.isNotEmpty() }
+            var pos = startPos
+            val page = textChapter.getPage(pageIndex)!!
+            if (pos > 0) {
+                for (paragraph in page.paragraphs) {
+                    val tmp = pos - paragraph.length - 1
+                    if (tmp < 0) break
+                    pos = tmp
                 }
-            if (play) play() else pageChanged = true
+            }
+            nowSpeak = textChapter.getParagraphNum(readAloudNumber + 1, readAloudByPage) - 1
+            if (!readAloudByPage && startPos == 0 && !toLast) {
+                pos = page.lines.first().chapterPosition -
+                        textChapter.paragraphs[nowSpeak].chapterPosition
+            }
+            if (toLast) {
+                toLast = false
+                readAloudNumber = textChapter.getLastParagraphPosition()
+                nowSpeak = contentList.lastIndex
+                if (page.paragraphs.size == 1) {
+                    pos = page.lines.first().chapterPosition -
+                            textChapter.paragraphs[nowSpeak].chapterPosition
+                }
+            }
+            paragraphStartPos = pos
+            launch(Main) {
+                if (play) play() else pageChanged = true
+            }
+        }.onError {
+            AppLog.put("启动朗读出错\n${it.localizedMessage}", it, true)
         }
     }
 
@@ -167,7 +215,7 @@ abstract class BaseReadAloudService : BaseService(),
         isRun = true
         pause = false
         needResumeOnAudioFocusGain = false
-        upNotification()
+        upReadAloudNotification()
         postEvent(EventBus.ALOUD_STATE, Status.PLAY)
     }
 
@@ -180,7 +228,7 @@ abstract class BaseReadAloudService : BaseService(),
         if (abandonFocus) {
             abandonFocus()
         }
-        upNotification()
+        upReadAloudNotification()
         upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PAUSED)
         postEvent(EventBus.ALOUD_STATE, Status.PAUSE)
         ReadBook.uploadProgress()
@@ -191,19 +239,40 @@ abstract class BaseReadAloudService : BaseService(),
     @CallSuper
     open fun resumeReadAloud() {
         pause = false
+        upReadAloudNotification()
         upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
         postEvent(EventBus.ALOUD_STATE, Status.PLAY)
     }
 
     abstract fun upSpeechRate(reset: Boolean = false)
 
+    fun upTtsProgress(progress: Int) {
+        ttsProgress = progress
+        postEvent(EventBus.TTS_PROGRESS, progress)
+    }
+
     private fun prevP() {
         if (nowSpeak > 0) {
             playStop()
             nowSpeak--
-            readAloudNumber -= contentList[nowSpeak].length.minus(1)
+            readAloudNumber -= contentList[nowSpeak].length + 1 + paragraphStartPos
+            paragraphStartPos = 0
+            textChapter?.let {
+                val paragraphs = if (readAloudByPage) {
+                    it.pageParagraphs
+                } else {
+                    it.paragraphs
+                }
+                if (!paragraphs[nowSpeak].isParagraphEnd) readAloudNumber++
+                if (readAloudNumber < it.getReadLength(pageIndex)) {
+                    pageIndex--
+                    ReadBook.moveToPrevPage()
+                }
+            }
+            upTtsProgress(readAloudNumber + 1)
             play()
         } else {
+            toLast = true
             ReadBook.moveToPrevChapter(true)
         }
     }
@@ -211,8 +280,10 @@ abstract class BaseReadAloudService : BaseService(),
     private fun nextP() {
         if (nowSpeak < contentList.size - 1) {
             playStop()
-            readAloudNumber += contentList[nowSpeak].length.plus(1)
+            readAloudNumber += contentList[nowSpeak].length.plus(1) - paragraphStartPos
+            paragraphStartPos = 0
             nowSpeak++
+            upTtsProgress(readAloudNumber + 1)
             play()
         } else {
             nextChapter()
@@ -240,9 +311,9 @@ abstract class BaseReadAloudService : BaseService(),
     @Synchronized
     private fun doDs() {
         postEvent(EventBus.READ_ALOUD_DS, timeMinute)
-        upNotification()
+        upReadAloudNotification()
         dsJob?.cancel()
-        dsJob = launch {
+        dsJob = lifecycleScope.launch {
             while (isActive) {
                 delay(60000)
                 if (!pause) {
@@ -254,7 +325,7 @@ abstract class BaseReadAloudService : BaseService(),
                     }
                 }
                 postEvent(EventBus.READ_ALOUD_DS, timeMinute)
-                upNotification()
+                upReadAloudNotification()
             }
         }
     }
@@ -311,7 +382,7 @@ abstract class BaseReadAloudService : BaseService(),
     }
 
     /**
-     * 断开耳机监听
+     * 注册多媒体按钮监听
      */
     private fun initBroadcastReceiver() {
         val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -335,10 +406,12 @@ abstract class BaseReadAloudService : BaseService(),
                     AppLog.put("音频焦点获得")
                 }
             }
+
             AudioManager.AUDIOFOCUS_LOSS -> {
                 AppLog.put("音频焦点丢失,暂停朗读")
                 pauseReadAloud()
             }
+
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 AppLog.put("音频焦点暂时丢失并会很快再次获得,暂停朗读")
                 if (!pause) {
@@ -346,6 +419,7 @@ abstract class BaseReadAloudService : BaseService(),
                     pauseReadAloud(false)
                 }
             }
+
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 // 短暂丢失焦点，这种情况是被其他应用申请了短暂的焦点希望其他声音能压低音量（或者关闭声音）凸显这个声音（比如短信提示音），
                 AppLog.put("音频焦点短暂丢失,不做处理")
@@ -353,74 +427,86 @@ abstract class BaseReadAloudService : BaseService(),
         }
     }
 
+    private fun upReadAloudNotification() {
+        execute {
+            createNotification()
+        }.onSuccess {
+            notificationManager.notify(NotificationId.ReadAloudService, it.build())
+        }.onError {
+            AppLog.put("创建朗读通知出错,${it.localizedMessage}", it, true)
+        }
+    }
+
+    private fun createNotification(): NotificationCompat.Builder {
+        var nTitle: String = when {
+            pause -> getString(R.string.read_aloud_pause)
+            timeMinute > 0 -> getString(
+                R.string.read_aloud_timer,
+                timeMinute
+            )
+
+            else -> getString(R.string.read_aloud_t)
+        }
+        nTitle += ": ${ReadBook.book?.name}"
+        var nSubtitle = ReadBook.curTextChapter?.title
+        if (nSubtitle.isNullOrBlank())
+            nSubtitle = getString(R.string.read_aloud_s)
+        val builder = NotificationCompat
+            .Builder(this@BaseReadAloudService, AppConst.channelIdReadAloud)
+            .setSmallIcon(R.drawable.ic_volume_up)
+            .setSubText(getString(R.string.read_aloud))
+            .setOngoing(true)
+            .setContentTitle(nTitle)
+            .setContentText(nSubtitle)
+            .setContentIntent(
+                activityPendingIntent<ReadBookActivity>("activity")
+            )
+            .setVibrate(null)
+            .setSound(null)
+            .setLights(0, 0, 0)
+        builder.setLargeIcon(cover)
+        if (pause) {
+            builder.addAction(
+                R.drawable.ic_play_24dp,
+                getString(R.string.resume),
+                aloudServicePendingIntent(IntentAction.resume)
+            )
+        } else {
+            builder.addAction(
+                R.drawable.ic_pause_24dp,
+                getString(R.string.pause),
+                aloudServicePendingIntent(IntentAction.pause)
+            )
+        }
+        builder.addAction(
+            R.drawable.ic_stop_black_24dp,
+            getString(R.string.stop),
+            aloudServicePendingIntent(IntentAction.stop)
+        )
+        builder.addAction(
+            R.drawable.ic_time_add_24dp,
+            getString(R.string.set_timer),
+            aloudServicePendingIntent(IntentAction.addTimer)
+        )
+        builder.setStyle(
+            androidx.media.app.NotificationCompat.MediaStyle()
+                .setShowActionsInCompactView(0, 1, 2)
+        )
+        return builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+    }
+
     /**
      * 更新通知
      */
     override fun upNotification() {
         execute {
-            var nTitle: String = when {
-                pause -> getString(R.string.read_aloud_pause)
-                timeMinute > 0 -> getString(
-                    R.string.read_aloud_timer,
-                    timeMinute
-                )
-                else -> getString(R.string.read_aloud_t)
-            }
-            nTitle += ": ${ReadBook.book?.name}"
-            var nSubtitle = ReadBook.curTextChapter?.title
-            if (nSubtitle.isNullOrBlank())
-                nSubtitle = getString(R.string.read_aloud_s)
-            val builder = NotificationCompat
-                .Builder(this@BaseReadAloudService, AppConst.channelIdReadAloud)
-                .setSmallIcon(R.drawable.ic_volume_up)
-                .setSubText(getString(R.string.read_aloud))
-                .setOngoing(true)
-                .setContentTitle(nTitle)
-                .setContentText(nSubtitle)
-                .setContentIntent(
-                    activityPendingIntent<ReadBookActivity>("activity")
-                )
-            kotlin.runCatching {
-                ImageLoader
-                    .loadBitmap(this@BaseReadAloudService, ReadBook.book?.getDisplayCover())
-                    .submit()
-                    .get()
-            }.getOrElse {
-                BitmapFactory.decodeResource(resources, R.drawable.icon_read_book)
-            }.let {
-                builder.setLargeIcon(it)
-            }
-            if (pause) {
-                builder.addAction(
-                    R.drawable.ic_play_24dp,
-                    getString(R.string.resume),
-                    aloudServicePendingIntent(IntentAction.resume)
-                )
-            } else {
-                builder.addAction(
-                    R.drawable.ic_pause_24dp,
-                    getString(R.string.pause),
-                    aloudServicePendingIntent(IntentAction.pause)
-                )
-            }
-            builder.addAction(
-                R.drawable.ic_stop_black_24dp,
-                getString(R.string.stop),
-                aloudServicePendingIntent(IntentAction.stop)
-            )
-            builder.addAction(
-                R.drawable.ic_time_add_24dp,
-                getString(R.string.set_timer),
-                aloudServicePendingIntent(IntentAction.addTimer)
-            )
-            builder.setStyle(
-                androidx.media.app.NotificationCompat.MediaStyle()
-                    .setShowActionsInCompactView(0, 1, 2)
-            )
-            builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            builder
+            createNotification()
         }.onSuccess {
-            startForeground(AppConst.notificationIdRead, it.build())
+            startForeground(NotificationId.ReadAloudService, it.build())
+        }.onError {
+            AppLog.put("创建朗读通知出错,${it.localizedMessage}", it, true)
+            //创建通知出错不结束服务就会崩溃,服务必须绑定通知
+            stopSelf()
         }
     }
 
@@ -428,6 +514,7 @@ abstract class BaseReadAloudService : BaseService(),
 
     open fun nextChapter() {
         ReadBook.upReadTime()
+        AppLog.putDebug("${ReadBook.curTextChapter?.chapter?.title} 朗读结束跳转下一章并朗读")
         if (!ReadBook.moveToNextChapter(true)) {
             stopSelf()
         }

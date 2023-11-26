@@ -6,8 +6,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import android.text.Html
+import android.view.MotionEvent
 import android.view.View
 import android.view.View.*
 import android.view.inputmethod.InputMethodManager
@@ -132,12 +134,21 @@ fun View.visible(visible: Boolean) {
     }
 }
 
-fun View.screenshot(): Bitmap? {
+fun View.screenshot(bitmap: Bitmap? = null, canvas: Canvas? = null): Bitmap? {
     return if (width > 0 && height > 0) {
-        val screenshot = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val c = Canvas(screenshot)
+        val screenshot = if (bitmap != null && bitmap.width == width && bitmap.height == height) {
+            bitmap.eraseColor(Color.TRANSPARENT)
+            bitmap
+        } else {
+            bitmap?.recycle()
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        }
+        val c = canvas ?: Canvas()
+        c.setBitmap(screenshot)
+        c.save()
         c.translate(-scrollX.toFloat(), -scrollY.toFloat())
         this.draw(c)
+        c.restore()
         c.setBitmap(null)
         screenshot.prepareToDraw()
         screenshot
@@ -195,4 +206,17 @@ fun PopupMenu.show(x: Int, y: Int) {
     }.onFailure {
         it.printOnDebug()
     }
+}
+
+fun View.shouldHideSoftInput(event: MotionEvent): Boolean {
+    if (this is EditText) {
+        val l = intArrayOf(0, 0)
+        getLocationInWindow(l)
+        val left = l[0]
+        val top = l[1]
+        val bottom = top + getHeight()
+        val right = left + getWidth()
+        return !(event.x > left && event.x < right && event.y > top && event.y < bottom)
+    }
+    return false
 }

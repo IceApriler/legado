@@ -16,15 +16,16 @@ import io.legado.app.utils.ConflateLiveData
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.mapLatest
+import java.util.Collections
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModel(application: Application) : BaseViewModel(application) {
     val handler = Handler(Looper.getMainLooper())
-    val bookshelf = hashSetOf<String>()
+    val bookshelf: MutableSet<String> = Collections.synchronizedSet(hashSetOf<String>())
     val upAdapterLiveData = MutableLiveData<String>()
     var searchBookLiveData = ConflateLiveData<List<SearchBook>>(1000)
     val searchScope: SearchScope = SearchScope(AppConfig.searchScope)
-    var searchFinishCallback: ((isEmpty: Boolean) -> Unit)? = null
+    var searchFinishLiveData = MutableLiveData<Boolean>()
     var isSearchLiveData = MutableLiveData<Boolean>()
     var searchKey: String = ""
     private var searchID = 0L
@@ -44,7 +45,7 @@ class SearchViewModel(application: Application) : BaseViewModel(application) {
 
         override fun onSearchFinish(isEmpty: Boolean) {
             isSearchLiveData.postValue(false)
-            searchFinishCallback?.invoke(isEmpty)
+            searchFinishLiveData.postValue(isEmpty)
         }
 
         override fun onSearchCancel(exception: Exception?) {
@@ -74,15 +75,17 @@ class SearchViewModel(application: Application) : BaseViewModel(application) {
      * 开始搜索
      */
     fun search(key: String) {
-        if ((searchKey == key) || key.isNotEmpty()) {
-            searchModel.cancelSearch()
-            searchID = System.currentTimeMillis()
-            searchKey = key
+        execute {
+            if ((searchKey == key) || key.isNotEmpty()) {
+                searchModel.cancelSearch()
+                searchID = System.currentTimeMillis()
+                searchKey = key
+            }
+            if (searchKey.isEmpty()) {
+                return@execute
+            }
+            searchModel.search(searchID, searchKey)
         }
-        if (searchKey.isEmpty()) {
-            return
-        }
-        searchModel.search(searchID, searchKey)
     }
 
     /**
@@ -115,7 +118,9 @@ class SearchViewModel(application: Application) : BaseViewModel(application) {
     }
 
     fun deleteHistory(searchKeyword: SearchKeyword) {
-        appDb.searchKeywordDao.delete(searchKeyword)
+        execute {
+            appDb.searchKeywordDao.delete(searchKeyword)
+        }
     }
 
     override fun onCleared() {

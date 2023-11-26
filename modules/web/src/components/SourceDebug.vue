@@ -27,9 +27,12 @@ const store = useSourceStore();
 const printDebug = ref("");
 const searchKey = ref("");
 
-watchEffect(() => {
-  if (store.isDebuging) startDebug();
-});
+watch(
+  () => store.isDebuging,
+  () => {
+    if (store.isDebuging) startDebug();
+  },
+);
 
 const appendDebugMsg = (msg) => {
   let debugDom = document.querySelector("#debug-text");
@@ -43,7 +46,7 @@ const startDebug = async () => {
     store.currentSourceUrl,
     searchKey.value || store.searchKey,
     appendDebugMsg,
-    store.debugFinish
+    store.debugFinish,
   );
 };
 

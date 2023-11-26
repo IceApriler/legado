@@ -5,14 +5,13 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.widget.SearchView
 import androidx.core.view.isGone
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.legado.app.R
-import io.legado.app.constant.AppConst
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.EventBus
-import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookGroup
@@ -42,14 +41,18 @@ import kotlin.math.max
 /**
  * 书架界面
  */
-class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
+class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
     SearchView.OnQueryTextListener,
     BaseBooksAdapter.CallBack {
 
-    private val binding by viewBinding(FragmentBookshelf2Binding::bind)
-    private val bookshelfLayout by lazy {
-        getPrefInt(PreferKey.bookshelfLayout)
+    constructor(position: Int) : this() {
+        val bundle = Bundle()
+        bundle.putInt("position", position)
+        arguments = bundle
     }
+
+    private val binding by viewBinding(FragmentBookshelf2Binding::bind)
+    private val bookshelfLayout by lazy { AppConfig.bookshelfLayout }
     private val booksAdapter: BaseBooksAdapter<*> by lazy {
         if (bookshelfLayout == 0) {
             BooksAdapterList(requireContext(), this)
@@ -59,7 +62,7 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
     }
     private var bookGroups: List<BookGroup> = emptyList()
     private var booksFlowJob: Job? = null
-    override var groupId = AppConst.rootGroupId
+    override var groupId = BookGroup.IdRoot
     override var books: List<Book> = emptyList()
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
@@ -110,11 +113,17 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
         }
     }
 
+    override fun upSort() {
+        initBooksData()
+    }
+
     @SuppressLint("NotifyDataSetChanged")
     private fun initBooksData() {
         if (groupId == -100L) {
-            binding.titleBar.title = getString(R.string.bookshelf)
-            binding.refreshLayout.isEnabled = true
+            if (isAdded) {
+                binding.titleBar.title = getString(R.string.bookshelf)
+                binding.refreshLayout.isEnabled = true
+            }
         } else {
             bookGroups.firstOrNull {
                 groupId == it.groupId
@@ -124,24 +133,18 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
             }
         }
         booksFlowJob?.cancel()
-        booksFlowJob = launch {
-            when (groupId) {
-                AppConst.rootGroupId -> appDb.bookDao.flowRoot()
-                AppConst.bookGroupAllId -> appDb.bookDao.flowAll()
-                AppConst.bookGroupLocalId -> appDb.bookDao.flowLocal()
-                AppConst.bookGroupAudioId -> appDb.bookDao.flowAudio()
-                AppConst.bookGroupNetNoneId -> appDb.bookDao.flowNetNoGroup()
-                AppConst.bookGroupLocalNoneId -> appDb.bookDao.flowLocalNoGroup()
-                AppConst.bookGroupErrorId -> appDb.bookDao.flowUpdateError()
-                else -> appDb.bookDao.flowByGroup(groupId)
-            }.conflate().map { list ->
+        booksFlowJob = lifecycleScope.launch {
+            appDb.bookDao.flowByGroup(groupId).map { list ->
+                //排序
                 when (AppConfig.getBookSortByGroupId(groupId)) {
                     1 -> list.sortedByDescending {
                         it.latestChapterTime
                     }
+
                     2 -> list.sortedWith { o1, o2 ->
                         o1.name.cnCompare(o2.name)
                     }
+
                     3 -> list.sortedBy {
                         it.order
                     }
@@ -152,10 +155,12 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
             }.flowOn(Dispatchers.Default).catch {
                 AppLog.put("书架更新出错", it)
             }.conflate().collect { list ->
-                books = list
-                booksAdapter.notifyDataSetChanged()
-                binding.tvEmptyMsg.isGone = getItemCount() > 0
-                delay(100)
+                if (isAdded) {
+                    books = list
+                    booksAdapter.notifyDataSetChanged()
+                    binding.tvEmptyMsg.isGone = getItemCount() > 0
+                    delay(100)
+                }
             }
         }
     }
@@ -219,7 +224,7 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
     }
 
     override fun getItemCount(): Int {
-        return if (groupId == AppConst.rootGroupId) {
+        return if (groupId == BookGroup.IdRoot) {
             bookGroups.size + books.size
         } else {
             books.size
@@ -227,7 +232,7 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
     }
 
     override fun getItemType(position: Int): Int {
-        if (groupId != AppConst.rootGroupId) {
+        if (groupId != BookGroup.IdRoot) {
             return 0
         }
         if (position < bookGroups.size) {
@@ -237,7 +242,7 @@ class BookshelfFragment2 : BaseBookshelfFragment(R.layout.fragment_bookshelf2),
     }
 
     override fun getItem(position: Int): Any? {
-        if (groupId != AppConst.rootGroupId) {
+        if (groupId != BookGroup.IdRoot) {
             return books.getOrNull(position)
         }
         if (position < bookGroups.size) {

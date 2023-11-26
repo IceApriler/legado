@@ -44,7 +44,7 @@ data class BookChapter(
     var isVip: Boolean = false,         // 是否VIP
     var isPay: Boolean = false,         // 是否已购买
     var resourceUrl: String? = null,    // 音频真实URL
-    var tag: String? = null,            //
+    var tag: String? = null,            // 更新时间或其他章节附加信息
     var start: Long? = null,            // 章节起始位置
     var end: Long? = null,              // 章节终止位置
     var startFragmentId: String? = null,  //EPUB书籍当前章节的fragmentId
@@ -57,6 +57,12 @@ data class BookChapter(
     @IgnoredOnParcel
     override val variableMap: HashMap<String, String> by lazy {
         GSON.fromJsonObject<HashMap<String, String>>(variable).getOrNull() ?: hashMapOf()
+    }
+
+    @delegate:Ignore
+    @IgnoredOnParcel
+    private val titleMD5: String by lazy {
+        MD5Utils.md5Encode16(title)
     }
 
     override fun putVariable(key: String, value: String?): Boolean {
@@ -81,6 +87,10 @@ data class BookChapter(
             return other.url == url
         }
         return false
+    }
+
+    fun primaryStr(): String {
+        return bookUrl + url
     }
 
     fun getDisplayTitle(
@@ -145,9 +155,10 @@ data class BookChapter(
 
     @Suppress("unused")
     fun getFileName(suffix: String = "nb"): String =
-        String.format("%05d-%s.%s", index, MD5Utils.md5Encode16(title), suffix)
+        String.format("%05d-%s.%s", index, titleMD5, suffix)
+
 
     @Suppress("unused")
-    fun getFontName(): String = String.format("%05d-%s.ttf", index, MD5Utils.md5Encode16(title))
+    fun getFontName(): String = String.format("%05d-%s.ttf", index, titleMD5)
 }
 

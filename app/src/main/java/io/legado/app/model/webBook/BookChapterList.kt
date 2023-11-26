@@ -1,6 +1,8 @@
 package io.legado.app.model.webBook
 
 import android.text.TextUtils
+import com.script.SimpleBindings
+import com.script.rhino.RhinoScriptEngine
 import io.legado.app.R
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookChapter
@@ -78,8 +80,12 @@ object BookChapterList {
                 }
                 Debug.log(bookSource.bookSourceUrl, "◇目录总页数:${nextUrlList.size}")
             }
+
             else -> {
-                Debug.log(bookSource.bookSourceUrl, "◇并发解析目录,总页数:${chapterData.second.size}")
+                Debug.log(
+                    bookSource.bookSourceUrl,
+                    "◇并发解析目录,总页数:${chapterData.second.size}"
+                )
                 withContext(IO) {
                     val asyncArray = Array(chapterData.second.size) {
                         async(IO) {
@@ -117,8 +123,23 @@ object BookChapterList {
         }
         Debug.log(book.origin, "◇目录总数:${list.size}")
         coroutineContext.ensureActive()
+        val formatJs = tocRule.formatJs
+        val bindings = SimpleBindings()
+        bindings["gInt"] = 0
         list.forEachIndexed { index, bookChapter ->
             bookChapter.index = index
+            if (!formatJs.isNullOrBlank()) {
+                bindings["index"] = index + 1
+                bindings["chapter"] = bookChapter
+                bindings["title"] = bookChapter.title
+                RhinoScriptEngine.runCatching {
+                    eval(formatJs, bindings)?.toString()?.let {
+                        bookChapter.title = it
+                    }
+                }.onFailure {
+                    Debug.log(book.origin, "格式化标题出错, ${it.localizedMessage}")
+                }
+            }
         }
         val replaceRules = ContentProcessor.get(book.name, book.origin).getTitleReplaceRules()
         book.latestChapterTitle = list.last().getDisplayTitle(replaceRules)
@@ -196,10 +217,16 @@ object BookChapterList {
                 if (bookChapter.url.isEmpty()) {
                     if (bookChapter.isVolume) {
                         bookChapter.url = bookChapter.title + index
-                        Debug.log(bookSource.bookSourceUrl, "⇒一级目录${index}未获取到url,使用标题替代")
+                        Debug.log(
+                            bookSource.bookSourceUrl,
+                            "⇒一级目录${index}未获取到url,使用标题替代"
+                        )
                     } else {
                         bookChapter.url = baseUrl
-                        Debug.log(bookSource.bookSourceUrl, "⇒目录${index}未获取到url,使用baseUrl替代")
+                        Debug.log(
+                            bookSource.bookSourceUrl,
+                            "⇒目录${index}未获取到url,使用baseUrl替代"
+                        )
                     }
                 }
                 if (bookChapter.title.isNotEmpty()) {

@@ -6,6 +6,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import io.legado.app.exception.NoStackTraceException
@@ -38,7 +39,14 @@ data class FileDoc(
     fun asDocumentFile(): DocumentFile? {
         if (isContentScheme) {
             return if (isDir) {
-                DocumentFile.fromTreeUri(appCtx, uri)
+                Class.forName("androidx.documentfile.provider.TreeDocumentFile")
+                    .getDeclaredConstructor(
+                        DocumentFile::class.java,
+                        Context::class.java,
+                        Uri::class.java
+                    ).apply {
+                        isAccessible = true
+                    }.newInstance(null, appCtx, uri) as DocumentFile
             } else {
                 DocumentFile.fromSingleUri(appCtx, uri)
             }
@@ -232,6 +240,18 @@ fun FileDoc.openInputStream(): Result<InputStream> {
     return uri.inputStream(appCtx)
 }
 
+fun FileDoc.openOutputStream(): Result<OutputStream> {
+    return uri.outputStream(appCtx)
+}
+
+fun FileDoc.openReadPfd(): Result<ParcelFileDescriptor> {
+    return uri.toReadPfd(appCtx)
+}
+
+fun FileDoc.openWritePfd(): Result<ParcelFileDescriptor> {
+    return uri.toWritePfd(appCtx)
+}
+
 fun FileDoc.exists(
     fileName: String,
     vararg subDirs: String
@@ -308,4 +328,20 @@ fun DocumentFile.readBytes(context: Context): ByteArray {
         it.close()
         return buffer
     } ?: throw NoStackTraceException("打开文件失败\n${uri}")
+}
+
+fun DocumentFile.checkWrite(): Boolean {
+    return try {
+        val filename = System.currentTimeMillis().toString()
+        createFile(FileUtils.getMimeType(filename), filename)?.let {
+            it.openOutputStream()?.let { out ->
+                out.use { }
+                it.delete()
+                return true
+            }
+        }
+        false
+    } catch (e: Exception) {
+        false
+    }
 }

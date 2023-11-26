@@ -11,7 +11,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View.OnClickListener
 import android.view.View.OnLongClickListener
-import android.view.WindowManager
+import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 import android.view.animation.Animation
 import android.widget.FrameLayout
 import android.widget.SeekBar
@@ -42,7 +42,7 @@ class ReadMenu @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : FrameLayout(context, attrs) {
-    var cnaShowMenu: Boolean = false
+    var canShowMenu: Boolean = false
     private val callBack: CallBack get() = activity as CallBack
     private val binding = ViewReadMenuBinding.inflate(LayoutInflater.from(context), this, true)
     private var confirmSkipToChapter: Boolean = false
@@ -61,7 +61,9 @@ class ReadMenu @JvmOverloads constructor(
     private val immersiveMenu: Boolean
         get() = AppConfig.readBarStyleFollowPage && ReadBookConfig.durConfig.curBgType() == 0
     private var bgColor: Int = if (immersiveMenu) {
-        Color.parseColor(ReadBookConfig.durConfig.curBgStr())
+        kotlin.runCatching {
+            Color.parseColor(ReadBookConfig.durConfig.curBgStr())
+        }.getOrDefault(context.bottomBackground)
     } else {
         context.bottomBackground
     }
@@ -138,7 +140,7 @@ class ReadMenu @JvmOverloads constructor(
             this@ReadMenu.invisible()
             binding.titleBar.invisible()
             binding.bottomMenu.invisible()
-            cnaShowMenu = false
+            canShowMenu = false
             onMenuOutEnd?.invoke()
             callBack.upSystemUiVisibility()
         }
@@ -208,6 +210,7 @@ class ReadMenu @JvmOverloads constructor(
         } else {
             titleBarAddition.gone()
         }
+        upBrightnessVwPos()
     }
 
     fun reset() {
@@ -223,7 +226,9 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun upColorConfig() {
         bgColor = if (immersiveMenu) {
-            Color.parseColor(ReadBookConfig.durConfig.curBgStr())
+            kotlin.runCatching {
+                Color.parseColor(ReadBookConfig.durConfig.curBgStr())
+            }.getOrDefault(context.bottomBackground)
         } else {
             context.bottomBackground
         }
@@ -246,22 +251,24 @@ class ReadMenu @JvmOverloads constructor(
             binding.ivBrightnessAuto.setColorFilter(context.buttonDisabledColor)
             binding.seekBrightness.isEnabled = true
         }
-        setScreenBrightness(AppConfig.readBrightness)
+        setScreenBrightness(AppConfig.readBrightness.toFloat())
     }
 
     /**
      * 设置屏幕亮度
      */
-    private fun setScreenBrightness(value: Int) {
-        var brightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-        if (!brightnessAuto()) {
-            brightness = value.toFloat()
-            if (brightness < 1f) brightness = 1f
-            brightness /= 255f
+    fun setScreenBrightness(value: Float) {
+        activity?.run {
+            var brightness = BRIGHTNESS_OVERRIDE_NONE
+            if (!brightnessAuto() && value != BRIGHTNESS_OVERRIDE_NONE) {
+                brightness = value
+                if (brightness < 1f) brightness = 1f
+                brightness /= 255f
+            }
+            val params = window.attributes
+            params.screenBrightness = brightness
+            window.attributes = params
         }
-        val params = activity?.window?.attributes
-        params?.screenBrightness = brightness
-        activity?.window?.attributes = params
     }
 
     fun runMenuIn(anim: Boolean = !AppConfig.isEInkMode) {
@@ -295,6 +302,7 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun bindEvent() = binding.run {
+        vwMenuBg.setOnClickListener { runMenuOut() }
         titleBar.toolbar.setOnClickListener {
             ReadBook.book?.let {
                 context.startActivity<BookInfoActivity> {
@@ -357,7 +365,7 @@ class ReadMenu @JvmOverloads constructor(
 
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    setScreenBrightness(progress)
+                    setScreenBrightness(progress.toFloat())
                 }
             }
 
@@ -366,7 +374,10 @@ class ReadMenu @JvmOverloads constructor(
             }
 
         })
-
+        vwBrightnessPosAdjust.setOnClickListener {
+            AppConfig.brightnessVwPos = !AppConfig.brightnessVwPos
+            upBrightnessVwPos()
+        }
         //阅读进度
         seekReadPage.setOnSeekBarChangeListener(object : SeekBarChangeListener {
 
@@ -492,6 +503,7 @@ class ReadMenu @JvmOverloads constructor(
                         progress = ReadBook.durPageIndex
                     }
                 }
+
                 "chapter" -> {
                     max = ReadBook.chapterSize - 1
                     progress = ReadBook.durChapterIndex
@@ -513,6 +525,20 @@ class ReadMenu @JvmOverloads constructor(
             fabAutoPage.contentDescription = context.getString(R.string.auto_next_page)
         }
         fabAutoPage.setColorFilter(textColor)
+    }
+
+    private fun upBrightnessVwPos() {
+        if (AppConfig.brightnessVwPos) {
+            binding.root.modifyBegin()
+                .clear(R.id.ll_brightness, ConstraintModify.Anchor.LEFT)
+                .rightToRightOf(R.id.ll_brightness, R.id.vw_menu_root)
+                .commit()
+        } else {
+            binding.root.modifyBegin()
+                .clear(R.id.ll_brightness, ConstraintModify.Anchor.RIGHT)
+                .leftToLeftOf(R.id.ll_brightness, R.id.vw_menu_root)
+                .commit()
+        }
     }
 
     interface CallBack {

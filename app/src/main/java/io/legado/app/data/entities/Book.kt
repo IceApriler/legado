@@ -90,6 +90,7 @@ data class Book(
     // 最近一次阅读书籍的时间(打开正文的时间)
     @ColumnInfo(defaultValue = "0")
     var durChapterTime: Long = System.currentTimeMillis(),
+    //字数
     override var wordCount: String? = null,
     // 刷新书架时更新书籍信息
     @ColumnInfo(defaultValue = "1")
@@ -102,7 +103,11 @@ data class Book(
     var originOrder: Int = 0,
     // 自定义书籍变量信息(用于书源规则检索书籍信息)
     override var variable: String? = null,
-    var readConfig: ReadConfig? = null
+    //阅读设置
+    var readConfig: ReadConfig? = null,
+    //同步时间
+    @ColumnInfo(defaultValue = "0")
+    var syncTime: Long = 0L
 ) : Parcelable, BaseBook {
 
     override fun equals(other: Any?): Boolean {
@@ -134,6 +139,10 @@ data class Book(
     @Ignore
     @IgnoredOnParcel
     var downloadUrls: List<String>? = null
+
+    @Ignore
+    @IgnoredOnParcel
+    private var folderName: String? = null
 
     fun getRealAuthor() = author.replace(AppPattern.authorRegex, "")
 
@@ -237,10 +246,18 @@ data class Book(
     }
 
     fun getFolderName(): String {
+        folderName?.let {
+            return it
+        }
         //防止书名过长,只取9位
-        var folderName = name.replace(AppPattern.fileNameRegex, "")
-        folderName = folderName.substring(0, min(9, folderName.length))
-        return folderName + MD5Utils.md5Encode16(bookUrl)
+        folderName = getFolderNameNoCache()
+        return folderName!!
+    }
+
+    fun getFolderNameNoCache(): String {
+        return name.replace(AppPattern.fileNameRegex, "").let {
+            it.substring(0, min(9, it.length)) + MD5Utils.md5Encode16(bookUrl)
+        }
     }
 
     fun toSearchBook() = SearchBook(

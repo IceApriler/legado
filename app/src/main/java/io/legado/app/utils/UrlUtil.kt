@@ -2,6 +2,7 @@ package io.legado.app.utils
 
 import io.legado.app.BuildConfig
 import io.legado.app.constant.AppLog
+import io.legado.app.constant.AppPattern.semicolonRegex
 import io.legado.app.help.config.AppConfig
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.model.analyzeRule.CustomUrl
@@ -102,7 +103,7 @@ object UrlUtil {
         val redirectUrl: String? = conn.getHeaderField("Location")
 
         return if (raw != null) {
-            val fileNames = raw.split(";".toRegex()).filter { it.contains("filename") }
+            val fileNames = raw.split(semicolonRegex).filter { it.contains("filename") }
             val names = hashSetOf<String>()
             fileNames.forEach {
                 val fileName = it.substringAfter("=")
@@ -147,15 +148,16 @@ object UrlUtil {
         }
     }
 
+    private val fileSuffixRegex = Regex("^[a-z\\d]+$", RegexOption.IGNORE_CASE)
+
     /* 获取合法的文件后缀 */
     fun getSuffix(str: String, default: String? = null): String {
         val suffix = CustomUrl(str).getUrl()
             .substringAfterLast(".", "")
             .substringBefore("?")
         //检查截取的后缀字符是否合法 [a-zA-Z0-9]
-        val fileSuffixRegex = Regex("^[a-z\\d]+$", RegexOption.IGNORE_CASE)
         return if (suffix.length > 5 || !suffix.matches(fileSuffixRegex)) {
-            AppLog.put("Cannot find illegal suffix:\n target: $str\nsuffix: $suffix")
+            AppLog.put("Cannot find legal suffix:\n target: $str\n suffix: $suffix")
             default ?: "ext"
         } else {
             suffix
