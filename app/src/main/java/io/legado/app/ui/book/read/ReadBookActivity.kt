@@ -12,6 +12,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.get
 import androidx.core.view.isVisible
 import androidx.core.view.size
+import androidx.fragment.app.DialogFragment
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.BuildConfig
 import io.legado.app.R
@@ -147,7 +148,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var keepScreenJon: Job? = null
     private var tts: TTS? = null
     val textActionMenu: TextActionMenu by lazy {
-        TextActionMenu(this, this)
+        TextActionMenu(this, this, this)
     }
     private val popupAction: PopupAction by lazy {
         PopupAction(this)
@@ -239,6 +240,9 @@ class ReadBookActivity : BaseReadBookActivity(),
             ReadBook.uploadProgress()
             Backup.autoBack(this)
         }
+    }
+    public fun showDialogCostom(fragment: DialogFragment) {
+        showDialogFragment(fragment)
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {

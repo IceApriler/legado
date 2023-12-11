@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.util.Log
 import android.view.*
 import android.widget.PopupWindow
 import androidx.annotation.RequiresApi
@@ -14,6 +16,8 @@ import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.view.menu.MenuItemImpl
 import androidx.core.view.isVisible
+import com.opencsv.CSVReader
+import com.opencsv.CSVWriter
 import io.legado.app.R
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
@@ -21,10 +25,18 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ItemTextBinding
 import io.legado.app.databinding.PopupActionMenuBinding
 import io.legado.app.help.config.AppConfig
+import io.legado.app.ui.book.collect.CollectSelectDialog
+import io.legado.app.ui.book.read.page.ReadView
 import io.legado.app.utils.*
+import io.legado.app.utils.LogUtils.getCurrentDateStr
+import io.legado.app.utils.showDialogFragment
+import java.io.File
+import java.io.FileReader
+import java.io.FileWriter
+import java.io.IOException
 
 @SuppressLint("RestrictedApi")
-class TextActionMenu(private val context: Context, private val callBack: CallBack) :
+class TextActionMenu(private val context: Context, private val callBack: CallBack, private val activity: ReadBookActivity) :
     PopupWindow(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT) {
 
     private val binding = PopupActionMenuBinding.inflate(LayoutInflater.from(context))
@@ -216,7 +228,26 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
                 }
             }
             R.id.menu_collect_str -> {
-                context.toastOnUi("测试收藏："+callBack.selectedText)
+                Log.d("collect", "onMenuItemSelected: "+callBack.selectedText)
+
+                context.toastOnUi("收藏："+callBack.selectedText)
+
+                activity.showDialogFragment(CollectSelectDialog(callBack.selectedText))
+
+//                val customDirectory = "AMyDocument"
+//                // 获取CSV文件路径
+//                val csvFilePath = File(Environment.getExternalStorageDirectory(), "$customDirectory/my_data.csv").absolutePath
+//
+//                Log.d("collect", csvFilePath)
+//                // 保存CSV文件
+//                saveCsvFile(csvFilePath)
+//
+//                // 追加数据到CSV文件
+//                val newData = "New Data, "+ getCurrentDateStr("yy-MM-dd HH:mm:ss.SSS") +", "+ callBack.selectedText +"\n"
+//                appendDataToCsvFile(csvFilePath, newData)
+//
+//                // 修改CSV文件中的数据
+//                modifyCsvFile(csvFilePath, "John Doe", "Updated Age")
             }
             else -> item.intent?.let {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -226,6 +257,112 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
             }
         }
     }
+
+    private fun saveCsvFile(filePath: String) {
+        Log.d("collect", "saveCsvFile")
+        try {
+            val file = File(filePath)
+            val fileWriter = FileWriter(file)
+
+            val writer = CSVWriter(fileWriter)
+            val data = arrayOf("Name", "Age", "Email")
+            writer.writeNext(data)
+
+            // 添加示例数据
+            val sampleData = arrayOf("John Doe", "25", "john@example.com")
+            writer.writeNext(sampleData)
+
+            writer.close()
+
+            Log.d("collect", "saveCsvFile----success")
+
+            // 文件保存成功
+            context.toastOnUi("CSV file saved successfully")
+        } catch (e: IOException) {
+            Log.d("collect", "saveCsvFile----error")
+            e.printStackTrace()
+            // 处理保存文件失败的情况
+            context.toastOnUi("Failed to save CSV file")
+        }
+    }
+
+    private fun appendDataToCsvFile(filePath: String, newData: String) {
+        try {
+            val fileWriter = FileWriter(filePath, true)
+            val writer = CSVWriter(fileWriter)
+
+            // 将新数据追加到文件末尾
+            writer.writeNext(newData.split(",").toTypedArray())
+
+            writer.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            // 处理异常
+        }
+    }
+
+    private fun modifyCsvFile(filePath: String, targetName: String, newAge: String) {
+        val csvEntries = readCsvFile(filePath)
+        for (entry in csvEntries) {
+            if (entry[0] == targetName) {
+                entry[1] = newAge
+            }
+        }
+
+        writeCsvFile(filePath, csvEntries)
+    }
+
+    private fun deleteDataFromCsvFile(filePath: String, targetName: String) {
+        val csvEntries = readCsvFile(filePath)
+        csvEntries.removeIf { entry -> entry[0] == targetName }
+        writeCsvFile(filePath, csvEntries)
+    }
+
+    private fun queryCsvFile(filePath: String) {
+        val csvEntries = readCsvFile(filePath)
+        for (entry in csvEntries) {
+            // 处理查询到的数据
+            println("Name: ${entry[0]}, Age: ${entry[1]}, Email: ${entry[2]}")
+        }
+    }
+
+    private fun readCsvFile(filePath: String): MutableList<Array<String>> {
+        val csvEntries = mutableListOf<Array<String>>()
+
+        try {
+            val reader = CSVReader(FileReader(filePath))
+            var nextLine: Array<String>?
+
+            // 逐行读取CSV文件
+            while (reader.readNext().also { nextLine = it } != null) {
+                csvEntries.add(nextLine!!)
+            }
+
+            reader.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // 处理异常
+        }
+
+        return csvEntries
+    }
+
+    private fun writeCsvFile(filePath: String, data: List<Array<String>>) {
+        try {
+            val fileWriter = FileWriter(filePath)
+            val writer = CSVWriter(fileWriter)
+
+            for (entry in data) {
+                writer.writeNext(entry)
+            }
+
+            writer.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            // 处理异常
+        }
+    }
+
 
     @RequiresApi(Build.VERSION_CODES.M)
     private fun createProcessTextIntent(): Intent {

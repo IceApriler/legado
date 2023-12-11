@@ -3,6 +3,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/menu_collect_str"
+        android:title="收藏"/>
+        
+    <item
         android:id="@+id/menu_replace"
         android:title="@string/replace" />
 
@@ -37,8 +41,4 @@
         android:title="@string/share"
         app:showAsAction="never" />
 
-    <item
-        android:id="@+id/menu_collect_str"
-        android:title="收藏"
-        app:showAsAction="never" />
 </menu>
